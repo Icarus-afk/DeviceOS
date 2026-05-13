@@ -1,0 +1,12 @@
+# Minimal DeviceOS Configuration
+# Just the essentials — everything else uses defaults.
+
+server:
+  port: 8080
+
+sparkdb:
+  data_dir: "./data/sparkdb"
+
+modules:
+  jwt_secret: "change-me"
+  admin_api_key: "dos_admin_key_0001"

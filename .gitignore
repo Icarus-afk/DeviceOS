@@ -1,0 +1,31 @@
+# ── Compiled binaries ──────────────────────────────────
+bin/
+*.test
+*.out
+*.exe
+
+# ── Runtime data ──────────────────────────────────────
+data/
+
+# ── Internal design docs (not for public) ─────────────
+/Docs/Internal/*
+AGENTS.md
+
+# ── IDE / editors ─────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.~lock.*
+
+# ── OS junk ───────────────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Build / temporary ─────────────────────────────────
+/tmp/
+*.log

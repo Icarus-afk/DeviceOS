@@ -1,0 +1,19 @@
+# DeviceOS Development Configuration
+# Optimized for local development and testing.
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+sparkdb:
+  bin_path: "./sparkdb"
+  host: "127.0.0.1"
+  port: 9600
+  database: "deviceos"
+  data_dir: "./data/sparkdb"
+  api_key: ""
+  auth: false
+
+modules:
+  jwt_secret: "dev-change-me-in-production"
+  admin_api_key: "dos_dev_admin_token_0001"

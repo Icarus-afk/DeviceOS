@@ -1,0 +1,19 @@
+# DeviceOS Production Configuration
+# Hardened settings for production deployment.
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+sparkdb:
+  bin_path: "/usr/local/bin/sparkdb"
+  host: "127.0.0.1"
+  port: 9600
+  database: "deviceos"
+  data_dir: "/var/lib/deviceos/sparkdb"
+  api_key: ""
+  auth: true
+
+modules:
+  jwt_secret: ""  # Required: set via DEVICEOS_JWT_SECRET env var
+  admin_api_key: ""  # Required: set via DEVICEOS_ADMIN_TOKEN env var
