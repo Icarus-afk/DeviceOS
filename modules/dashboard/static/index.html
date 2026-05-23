@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeviceOS Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;min-height:100vh}
+.sidebar{width:220px;background:#1e293b;border-right:1px solid #334155;padding:20px 0;display:flex;flex-direction:column}
+.sidebar h1{font-size:18px;font-weight:600;color:#f8fafc;padding:0 20px 20px;border-bottom:1px solid #334155;margin-bottom:12px}
+.sidebar nav{display:flex;flex-direction:column;gap:2px}
+.sidebar nav a{padding:10px 20px;color:#94a3b8;text-decoration:none;font-size:14px;transition:all .15s;cursor:pointer;display:flex;align-items:center;gap:10px}
+.sidebar nav a:hover{background:#334155;color:#e2e8f0}
+.sidebar nav a.active{background:#0f172a;color:#3b82f6;border-right:3px solid #3b82f6}
+.sidebar .version{font-size:11px;color:#475569;padding:20px;margin-top:auto;text-align:center}
+.main{flex:1;padding:24px;overflow-y:auto}
+.section{display:none}
+.section.active{display:block}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+header h2{font-size:20px;font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155}
+.stat-card h3{font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.stat-card .value{font-size:28px;font-weight:700}
+.stat-card .value.online{color:#22c55e}
+.stat-card .value.offline{color:#ef4444}
+.stat-card .value.total{color:#3b82f6}
+.stat-card .value.alerts{color:#f59e0b}
+.card{background:#1e293b;border-radius:12px;border:1px solid #334155;padding:20px;margin-bottom:20px}
+.card h3{font-size:14px;color:#f8fafc;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.device-list{background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden}
+.device-header{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:12px 20px;background:#0f172a;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #334155}
+.device-row{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:12px 20px;border-bottom:1px solid #1e293b;align-items:center;font-size:14px;cursor:pointer;transition:background .15s}
+.device-row:last-child{border-bottom:none}
+.device-row:hover{background:#334155}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}
+.status-dot.online{background:#22c55e}
+.status-dot.offline{background:#ef4444}
+.telemetry-panel{background:#1e293b;border-radius:12px;border:1px solid #334155;margin-top:16px;padding:20px}
+.telemetry-panel h3{font-size:14px;margin-bottom:12px;color:#f8fafc}
+.telemetry-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.metric-card{background:#0f172a;border-radius:8px;padding:16px;text-align:center}
+.metric-card .label{font-size:11px;color:#94a3b8;margin-bottom:4px;text-transform:uppercase}
+.metric-card .value{font-size:22px;font-weight:700;color:#3b82f6}
+.chart-container{display:flex;align-items:flex-end;gap:4px;height:120px;padding:8px 0}
+.chart-bar{flex:1;background:linear-gradient(to top,#3b82f6,#60a5fa);border-radius:3px 3px 0 0;min-width:6px;transition:height .3s;position:relative}
+.chart-bar-label{font-size:9px;color:#64748b;text-align:center;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chart-bar-value{font-size:9px;color:#94a3b8;text-align:center;margin-bottom:2px}
+.distribution-list{display:flex;flex-direction:column;gap:8px}
+.distro-row{display:flex;align-items:center;gap:12px}
+.distro-label{width:100px;font-size:13px;color:#e2e8f0}
+.distro-bar-wrap{flex:1;height:20px;background:#0f172a;border-radius:10px;overflow:hidden}
+.distro-bar{height:100%;border-radius:10px;transition:width .3s;background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+.distro-count{font-size:13px;color:#94a3b8;min-width:30px;text-align:right}
+.alert-item{padding:10px 0;border-bottom:1px solid #1e293b;display:flex;align-items:flex-start;gap:12px}
+.alert-item:last-child{border-bottom:none}
+.alert-severity{width:8px;height:8px;border-radius:50%;margin-top:6px;flex-shrink:0}
+.alert-severity.critical{background:#ef4444}
+.alert-severity.warning{background:#f59e0b}
+.alert-severity.info{background:#3b82f6}
+.alert-body{flex:1}
+.alert-msg{font-size:13px;color:#e2e8f0}
+.alert-meta{font-size:11px;color:#64748b;margin-top:2px}
+.ws-status{font-size:12px;padding:4px 12px;border-radius:20px}
+.ws-status.connected{background:#166534;color:#22c55e}
+.ws-status.disconnected{background:#7f1d1d;color:#ef4444}
+.empty-state{text-align:center;padding:40px 20px;color:#64748b;font-size:14px}
+@media(max-width:768px){.sidebar{width:60px}.sidebar h1,.sidebar nav a span,.sidebar .version{display:none}.sidebar nav a{justify-content:center;padding:12px}.main{padding:16px}}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h1>DeviceOS</h1>
+  <nav>
+    <a class="active" onclick="showSection('overview')" data-section="overview"><span>&#9632;</span><span>Overview</span></a>
+    <a onclick="showSection('devices')" data-section="devices"><span>&#9679;</span><span>Devices</span></a>
+    <a onclick="showSection('telemetry')" data-section="telemetry"><span>&#9650;</span><span>Telemetry</span></a>
+    <a onclick="showSection('alerts')" data-section="alerts"><span>&#9888;</span><span>Alerts</span></a>
+  </nav>
+  <div class="version" id="versionInfo">loading...</div>
+</div>
+
+<div class="main">
+
+<!-- Overview -->
+<div class="section active" id="section-overview">
+  <header>
+    <h2>Overview</h2>
+    <span id="wsStatus" class="ws-status disconnected">Disconnected</span>
+  </header>
+  <div class="stats">
+    <div class="stat-card"><h3>Total Devices</h3><div class="value total" id="totalCount">0</div></div>
+    <div class="stat-card"><h3>Online</h3><div class="value online" id="onlineCount">0</div></div>
+    <div class="stat-card"><h3>Offline</h3><div class="value offline" id="offlineCount">0</div></div>
+    <div class="stat-card"><h3>Alerts</h3><div class="value alerts" id="alertCount">0</div></div>
+  </div>
+  <div class="card">
+    <h3>Device Type Distribution</h3>
+    <div class="distribution-list" id="distroList"></div>
+  </div>
+  <div class="card">
+    <h3>Recent Telemetry (Temperature)</h3>
+    <div class="chart-container" id="tempChart"></div>
+  </div>
+  <div class="card">
+    <h3>Recent Alerts</h3>
+    <div id="recentAlerts"></div>
+  </div>
+</div>
+
+<!-- Devices -->
+<div class="section" id="section-devices">
+  <header>
+    <h2>Devices</h2>
+  </header>
+  <div class="stats">
+    <div class="stat-card"><h3>Total Devices</h3><div class="value total" id="devTotalCount">0</div></div>
+    <div class="stat-card"><h3>Online</h3><div class="value online" id="devOnlineCount">0</div></div>
+    <div class="stat-card"><h3>Offline</h3><div class="value offline" id="devOfflineCount">0</div></div>
+  </div>
+  <div class="device-list">
+    <div class="device-header">
+      <span>Device</span><span>Type</span><span>Status</span><span>Last Seen</span><span>Temperature</span>
+    </div>
+    <div id="deviceRows"></div>
+  </div>
+  <div class="telemetry-panel" id="telemetryPanel" style="display:none">
+    <h3>Live Telemetry: <span id="selectedDevice"></span></h3>
+    <div class="telemetry-grid" id="telemetryMetrics"></div>
+  </div>
+</div>
+
+<!-- Telemetry -->
+<div class="section" id="section-telemetry">
+  <header>
+    <h2>Telemetry</h2>
+    <span id="telemetryDeviceSelector"></span>
+  </header>
+  <div class="card">
+    <h3>Temperature History (all devices)</h3>
+    <div class="chart-container" id="tempChartFull" style="height:200px"></div>
+  </div>
+  <div class="card">
+    <h3>Telemetry Stream</h3>
+    <div id="telemetryStream" class="empty-state">Waiting for telemetry data...</div>
+  </div>
+</div>
+
+<!-- Alerts -->
+<div class="section" id="section-alerts">
+  <header>
+    <h2>Alerts</h2>
+  </header>
+  <div class="stats">
+    <div class="stat-card"><h3>Critical</h3><div class="value offline" id="alertCritical">0</div></div>
+    <div class="stat-card"><h3>Warning</h3><div class="value alerts" id="alertWarning">0</div></div>
+    <div class="stat-card"><h3>Info</h3><div class="value total" id="alertInfo">0</div></div>
+  </div>
+  <div class="card">
+    <h3>Alert History</h3>
+    <div id="alertHistory"></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const host = location.host;
+const devices = new Map();
+const latestTelemetry = new Map();
+const alerts = [];
+let selectedDeviceId = null;
+let telemetryHistory = [];
+
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.sidebar nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  document.querySelector(`.sidebar nav a[data-section="${id}"]`).classList.add('active');
+}
+
+async function loadDevices() {
+  try {
+    const res = await fetch(`/api/v1/devices`);
+    const data = await res.json();
+    for (const d of (data.devices || [])) {
+      devices.set(d.id, d);
+    }
+    renderOverview();
+    renderDeviceList();
+    renderDistribution();
+  } catch(e) {}
+}
+
+async function loadAlerts() {
+  try {
+    const res = await fetch(`/api/v1/alerts/history`);
+    const data = await res.json();
+    alerts.length = 0;
+    for (const a of (data.events || [])) {
+      alerts.push(a);
+    }
+    renderAlerts();
+  } catch(e) {}
+}
+
+async function loadHealthz() {
+  try {
+    const res = await fetch(`/healthz`);
+    const data = await res.json();
+    document.getElementById('versionInfo').textContent = 'v' + (data.version || '?');
+  } catch(e) {
+    document.getElementById('versionInfo').textContent = 'offline';
+  }
+}
+
+function renderOverview() {
+  let online = 0, offline = 0;
+  for (const d of devices.values()) {
+    if (d.status === 'online') online++; else offline++;
+  }
+  document.getElementById('totalCount').textContent = devices.size;
+  document.getElementById('onlineCount').textContent = online;
+  document.getElementById('offlineCount').textContent = offline;
+}
+
+function renderDeviceList() {
+  let online = 0, offline = 0;
+  let rows = '';
+  for (const [id, d] of devices) {
+    const status = d.status === 'online' ? 'online' : 'offline';
+    if (d.status === 'online') online++; else offline++;
+    const tele = latestTelemetry.get(id);
+    const temp = tele && tele.metrics && tele.metrics.temperature != null ? tele.metrics.temperature + '°C' : '—';
+    rows += `<div class="device-row" onclick="selectDevice('${id}')">
+      <span><span class="status-dot ${status}"></span>${d.name || id}</span>
+      <span>${d.type || '—'}</span>
+      <span>${status}</span>
+      <span>${d.last_seen ? new Date(d.last_seen).toLocaleTimeString() : '—'}</span>
+      <span>${temp}</span>
+    </div>`;
+  }
+  document.getElementById('deviceRows').innerHTML = rows;
+  document.getElementById('devTotalCount').textContent = devices.size;
+  document.getElementById('devOnlineCount').textContent = online;
+  document.getElementById('devOfflineCount').textContent = offline;
+}
+
+function renderDistribution() {
+  const distro = {};
+  for (const d of devices.values()) {
+    const t = d.type || 'unknown';
+    distro[t] = (distro[t] || 0) + 1;
+  }
+  const total = devices.size || 1;
+  const list = document.getElementById('distroList');
+  list.innerHTML = Object.entries(distro).map(([type, count]) => `
+    <div class="distro-row">
+      <span class="distro-label">${type}</span>
+      <div class="distro-bar-wrap"><div class="distro-bar" style="width:${(count/total*100).toFixed(1)}%"></div></div>
+      <span class="distro-count">${count}</span>
+    </div>
+  `).join('');
+}
+
+function renderTempChart(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const points = telemetryHistory.slice(-20);
+  if (points.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="width:100%;padding:20px">No telemetry data yet</div>';
+    return;
+  }
+  const temps = points.map(p => p.temp != null ? p.temp : 0);
+  const max = Math.max(...temps, 1);
+  container.innerHTML = points.map(p => {
+    const h = p.temp != null ? (p.temp / max * 100) : 0;
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1">
+      <div class="chart-bar-value">${p.temp != null ? p.temp.toFixed(1) : '—'}</div>
+      <div class="chart-bar" style="height:${Math.max(h, 2)}%"></div>
+      <div class="chart-bar-label">${p.label || ''}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderAlerts() {
+  const crit = alerts.filter(a => a.severity === 'critical').length;
+  const warn = alerts.filter(a => a.severity === 'warning').length;
+  const info = alerts.filter(a => a.severity === 'info').length;
+  document.getElementById('alertCount').textContent = alerts.length;
+  document.getElementById('alertCritical').textContent = crit;
+  document.getElementById('alertWarning').textContent = warn;
+  document.getElementById('alertInfo').textContent = info;
+
+  const renderList = (elId, items) => {
+    const el = document.getElementById(elId);
+    if (!items.length) {
+      el.innerHTML = '<div class="empty-state">No alerts</div>';
+      return;
+    }
+    el.innerHTML = items.slice(0, 20).map(a => `
+      <div class="alert-item">
+        <span class="alert-severity ${a.severity || 'warning'}"></span>
+        <div class="alert-body">
+          <div class="alert-msg">${a.message || a.description || 'Alert'}</div>
+          <div class="alert-meta">${a.device_id || ''} &middot; ${a.created_at ? new Date(a.created_at).toLocaleString() : ''}</div>
+        </div>
+      </div>
+    `).join('');
+  };
+
+  renderList('recentAlerts', alerts);
+  renderList('alertHistory', alerts);
+}
+
+function selectDevice(id) {
+  selectedDeviceId = id;
+  const d = devices.get(id);
+  document.getElementById('selectedDevice').textContent = d ? d.name || id : id;
+  document.getElementById('telemetryPanel').style.display = 'block';
+  updateTelemetryDisplay(id);
+}
+
+function updateTelemetryDisplay(deviceId) {
+  const tele = latestTelemetry.get(deviceId);
+  const grid = document.getElementById('telemetryMetrics');
+  if (!tele || !tele.metrics) {
+    grid.innerHTML = '<p style="color:#94a3b8;padding:8px">No telemetry data yet</p>';
+    return;
+  }
+  grid.innerHTML = Object.entries(tele.metrics).map(([key, val]) => {
+    const displayVal = typeof val === 'number' ? val.toFixed(1) : val;
+    return `<div class="metric-card"><div class="label">${key}</div><div class="value">${displayVal}</div></div>`;
+  }).join('');
+}
+
+function addTelemetryStream(msg) {
+  const el = document.getElementById('telemetryStream');
+  if (!el) return;
+  const entry = document.createElement('div');
+  entry.className = 'alert-item';
+  entry.innerHTML = `
+    <span class="alert-severity info"></span>
+    <div class="alert-body">
+      <div class="alert-msg">${msg.device_id || 'unknown'}</div>
+      <div class="alert-meta">${JSON.stringify(msg.metrics || {})}</div>
+    </div>`;
+  el.prepend(entry);
+  while (el.children.length > 100) el.removeChild(el.lastChild);
+  el.classList.remove('empty-state');
+}
+
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${host}/api/v1/ws/telemetry`);
+  const statusEl = document.getElementById('wsStatus');
+
+  ws.onopen = () => {
+    statusEl.textContent = 'Connected';
+    statusEl.className = 'ws-status connected';
+  };
+
+  ws.onmessage = (evt) => {
+    try {
+      const msg = JSON.parse(evt.data);
+      if (msg.event === 'telemetry' && msg.data) {
+        const t = msg.data;
+        latestTelemetry.set(t.device_id, t);
+        if (t.metrics && t.metrics.temperature != null) {
+          telemetryHistory.push({
+            temp: t.metrics.temperature,
+            label: t.device_id ? t.device_id.slice(0, 6) : '?',
+            ts: Date.now()
+          });
+          if (telemetryHistory.length > 100) telemetryHistory.shift();
+          renderTempChart('tempChart');
+          renderTempChart('tempChartFull');
+        }
+        const currentId = document.getElementById('selectedDevice').textContent;
+        if (currentId && (currentId === t.device_id || (devices.get(t.device_id) && devices.get(t.device_id).name === currentId))) {
+          updateTelemetryDisplay(t.device_id);
+        }
+        addTelemetryStream(t);
+        renderDeviceList();
+        renderOverview();
+      }
+      if (msg.event === 'alert' && msg.data) {
+        alerts.unshift(msg.data);
+        renderAlerts();
+      }
+    } catch(e) {}
+  };
+
+  ws.onclose = () => {
+    statusEl.textContent = 'Disconnected';
+    statusEl.className = 'ws-status disconnected';
+    setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+loadDevices();
+loadAlerts();
+loadHealthz();
+setInterval(loadDevices, 10000);
+setInterval(loadAlerts, 15000);
+connectWS();
+</script>
+</body>
+</html>
