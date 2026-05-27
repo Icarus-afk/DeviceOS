@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+var errRateLimited = fmt.Errorf("rate limit exceeded")
+
 type DB struct {
 	mu            sync.Mutex
 	client        *http.Client
@@ -23,7 +25,7 @@ type DB struct {
 	minRequestGap time.Duration
 }
 
-const defaultMinRequestGap = 5 * time.Millisecond
+const defaultMinRequestGap = 6 * time.Millisecond
 
 type Config struct {
 	Host           string
@@ -122,28 +124,42 @@ type queryResponse struct {
 }
 
 func (db *DB) query(sql string, params []interface{}) (*queryResponse, error) {
-	db.throttle()
-
 	body, _ := json.Marshal(queryRequest{
 		Query:    sql,
 		Database: db.database,
 		Params:   params,
 	})
-	resp, err := db.request("POST", "/query", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("sparkdb: request: %w", err)
-	}
-	defer resp.Body.Close()
 
-	var qr queryResponse
-	raw, _ := io.ReadAll(resp.Body)
-	if err := json.Unmarshal(raw, &qr); err != nil {
-		return nil, fmt.Errorf("sparkdb: decode: %w (body: %s)", err, string(raw))
+	var lastErr error
+	for attempt := range 3 {
+		db.throttle()
+
+		resp, err := db.request("POST", "/query", bytes.NewReader(body))
+		if err != nil {
+			return nil, fmt.Errorf("sparkdb: request: %w", err)
+		}
+		raw, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		// SparkDB returns "rate limit exceeded" as plain text (not JSON).
+		// Retry with exponential backoff when we hit its internal rate limiter.
+		if strings.Contains(string(raw), "rate limit exceeded") {
+			lastErr = errRateLimited
+			backoff := time.Duration(100*(attempt+1)*(attempt+1)) * time.Millisecond
+			time.Sleep(backoff)
+			continue
+		}
+
+		var qr queryResponse
+		if err := json.Unmarshal(raw, &qr); err != nil {
+			return nil, fmt.Errorf("sparkdb: decode: %w (body: %s)", err, string(raw))
+		}
+		if qr.Error != "" {
+			return nil, fmt.Errorf("sparkdb: %s", qr.Error)
+		}
+		return &qr, nil
 	}
-	if qr.Error != "" {
-		return nil, fmt.Errorf("sparkdb: %s", qr.Error)
-	}
-	return &qr, nil
+	return nil, fmt.Errorf("sparkdb: %w after 3 attempts", lastErr)
 }
 
 // TxInterface defines transaction operations used by modules.
