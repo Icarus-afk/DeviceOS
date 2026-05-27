@@ -124,25 +124,18 @@ class DeviceClient:
         return False
 
     # ── send telemetry with retry ─────────────────────────────────
-    # Note: SparkDB has a 1.3s rate limiter on ALL queries, and telemetry
-    # does ~3 DB round-trips (insert + device update + alert eval). With
-    # multiple concurrent devices, requests queue up. Timeout must be
-    # generous enough to cover the worst-case backlog.
     def send_telemetry(self, metrics: dict) -> bool:
         if not self.token:
             return False
         for attempt in range(2):
-            status, err = self._req("POST", "/api/v1/telemetry", {
+            status, _ = self._req("POST", "/api/v1/telemetry", {
                 "device_id": self.device_id,
                 "metrics": metrics,
-            }, token=self.token, timeout=90)
+            }, token=self.token, timeout=15)
             if status == 201:
                 return True
             if status == 0:
-                wait = 5 * (attempt + 1)
-                say(self.device_id, "TEL",
-                    f"server slow, retrying in {wait}s... ({err})", Col.YELLOW)
-                time.sleep(wait)
+                time.sleep(3 * (attempt + 1))
                 continue
             return False
         return False

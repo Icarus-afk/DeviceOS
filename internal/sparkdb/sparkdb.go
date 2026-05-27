@@ -23,7 +23,7 @@ type DB struct {
 	minRequestGap time.Duration
 }
 
-const defaultMinRequestGap = 1300 * time.Millisecond
+const defaultMinRequestGap = 5 * time.Millisecond
 
 type Config struct {
 	Host           string
