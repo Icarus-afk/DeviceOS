@@ -88,6 +88,8 @@ class DeviceClient:
                 return e.code, json.loads(body_bytes)
             except Exception:
                 return e.code, body_bytes.decode()
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+            return 0, str(e)
 
     # ── health check ──────────────────────────────────────────────
     def health(self) -> dict:
@@ -121,15 +123,24 @@ class DeviceClient:
             return bool(self.token)
         return False
 
-    # ── send telemetry ────────────────────────────────────────────
+    # ── send telemetry with retry ─────────────────────────────────
     def send_telemetry(self, metrics: dict) -> bool:
         if not self.token:
             return False
-        status, _ = self._req("POST", "/api/v1/telemetry", {
-            "device_id": self.device_id,
-            "metrics": metrics,
-        }, token=self.token)
-        return status == 201
+        for attempt in range(3):
+            status, _ = self._req("POST", "/api/v1/telemetry", {
+                "device_id": self.device_id,
+                "metrics": metrics,
+            }, token=self.token, timeout=15)
+            if status == 201:
+                return True
+            if status == 0:
+                # Connection error — server may be busy (rate limit).
+                # Wait and retry once.
+                time.sleep(3 * (attempt + 1))
+                continue
+            return False
+        return False
 
     # ── report command result ─────────────────────────────────────
     def report_result(self, cmd_id: str, status_str: str = "completed",
@@ -268,7 +279,8 @@ def _handle_cmd(ws, msg, dev, dtype, colour, on_command):
 
 def run_device(server: str, admin_token: str, name: str, dtype: str,
                interval: int, colour: str, stop_event: threading.Event,
-               auto_register: bool, metadata: dict = None):
+               auto_register: bool, metadata: dict = None,
+               phase_offset: float = 0):
     dev = DeviceClient(server, admin_token)
 
     # 1. Register if needed
@@ -293,6 +305,10 @@ def run_device(server: str, admin_token: str, name: str, dtype: str,
     )
     cmd_thread.start()
 
+    # 4. Stagger first send so devices don't all hit rate limiter
+    if phase_offset > 0:
+        stop_event.wait(timeout=phase_offset)
+
     # 4. Telemetry loop
     tick = 0
     say(dev.device_id, "RUN", f"sending telemetry every {interval}s — Ctrl+C to stop", colour)
@@ -304,7 +320,7 @@ def run_device(server: str, admin_token: str, name: str, dtype: str,
                 preview = ", ".join(f"{k}={v}" for k, v in list(metrics.items())[:3])
                 say(dev.device_id, "TEL", f"{preview}{' ...' if len(metrics) > 3 else ''}", colour)
             else:
-                say(dev.device_id, "TEL", f"send failed", Col.RED)
+                say(dev.device_id, "TEL", "send failed (server busy or down)", Col.RED)
             tick += interval
             stop_event.wait(timeout=interval)
     finally:
@@ -403,14 +419,16 @@ def auto_mode(server: str, admin_token: str, count: int, interval: int):
         name = names[i % len(names)] + f"-{i+1}"
         dtype = types[i % len(types)]
         colour = SENSOR_TYPES[dtype]["colour"]
+        phase = i * (interval / count)
         t = threading.Thread(
             target=run_device,
             args=(server, admin_token, name, dtype, interval, colour, stop, True),
+            kwargs={"phase_offset": phase},
             daemon=True,
         )
         t.start()
         threads.append(t)
-        time.sleep(0.3)  # stagger registrations
+        time.sleep(0.5)  # stagger registrations + auth
 
     print(f"\n  {Col.GREEN}{count} devices launched.{Col.RESET}")
     print(f"  {Col.GREY}Press Ctrl+C to stop all{Col.RESET}\n")
