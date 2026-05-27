@@ -2,72 +2,30 @@
 #
 # All values can also be set via environment variables (prefixed with DEVICEOS_).
 # Env vars override values in this file.
+#
+# Usage:
+#   ./bin/deviceos start                    # uses this file
+#   ./bin/deviceos start --config deviceos.yaml
+#
+# See config/examples/ for alternative environment configs:
+#   config/examples/deviceos.dev.yaml      # dev (explicit paths)
+#   config/examples/deviceos.minimal.yaml  # bare minimum
+#   config/examples/deviceos.prod.yaml     # hardened production
 
 server:
-  # HTTP server bind address
   host: "0.0.0.0"
-
-  # HTTP server port
   port: 8080
 
 sparkdb:
-  # Path to the sparkdb binary. If empty, searches in order:
-  #   1. This path
-  #   2. ./sparkdb (current directory)
-  #   3. ./bin/sparkdb
-  #   4. PATH
-  # Env: DEVICEOS_SPARKDB_BIN_PATH or SPARKDB_BIN
-  bin_path: ""
-
-  # SparkDB server host (sparkdb binds to this internally)
+  bin_path: "./bin/sparkdb"
   host: "127.0.0.1"
-
-  # SparkDB server port
   port: 9600
-
-  # SparkDB database name
   database: "deviceos"
-
-  # SparkDB data directory
   data_dir: "./data/sparkdb"
-
-  # SparkDB API key (for automated auth if login fails)
   api_key: ""
-
-  # Enable SparkDB authentication
   auth: false
-
-  # SparkDB WAL mode (default: true)
-  # Env: DEVICEOS_SPARKDB_WAL_MODE
-  # wal_mode: true
-
-  # SparkDB max connections (default: 100)
-  # Env: DEVICEOS_SPARKDB_MAX_CONNECTIONS
-  # max_connections: 100
-
-  # Extra SparkDB config — any setting not exposed above can be set here.
-  # These values are deep-merged into SparkDB's generated config file.
-  # Example:
-  # extra_config:
-  #   backup:
-  #     schedule: "0 3 * * *"
-  #     keep_count: 30
-  #   tls:
-  #     enabled: true
-  #     cert_file: /etc/sparkdb/cert.pem
-  #     key_file: /etc/sparkdb/key.pem
-  #   replication:
-  #     role: replica
-  #     primary_url: http://primary:9600
-  #     api_key: "repl-key"
   extra_config: {}
 
 modules:
-  # JWT secret for signing auth tokens.
-  # Change this in production!
-  # Env: DEVICEOS_JWT_SECRET
   jwt_secret: "dev-change-me-in-production"
-
-  # Bootstrap admin API key. If empty, one is auto-generated on first start.
-  # Env: DEVICEOS_ADMIN_TOKEN
   admin_api_key: "dos_dev_admin_token_0001"

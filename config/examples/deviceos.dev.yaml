@@ -1,17 +1,16 @@
-# DeviceOS Development Configuration
-# Optimized for local development and testing.
+# DeviceOS Development Configuration (explicit paths)
+# Run: ./bin/deviceos start --config config/examples/deviceos.dev.yaml
 
 server:
   host: "0.0.0.0"
   port: 8080
 
 sparkdb:
-  bin_path: "./sparkdb"
+  bin_path: "./bin/sparkdb"
   host: "127.0.0.1"
   port: 9600
   database: "deviceos"
   data_dir: "./data/sparkdb"
-  api_key: ""
   auth: false
 
 modules:
