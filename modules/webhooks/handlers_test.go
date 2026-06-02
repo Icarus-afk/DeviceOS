@@ -7,14 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestWebhooks_Create_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -41,7 +41,7 @@ func TestWebhooks_Create_Success(t *testing.T) {
 }
 
 func TestWebhooks_Create_MissingFields(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestWebhooks_Create_MissingFields(t *testing.T) {
 }
 
 func TestWebhooks_Create_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -80,8 +80,8 @@ func TestWebhooks_Create_BadJSON(t *testing.T) {
 }
 
 func TestWebhooks_Create_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -102,9 +102,9 @@ func TestWebhooks_Create_ExecError(t *testing.T) {
 }
 
 func TestWebhooks_List_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"wh_1", "my-hook", "http://example.com/hook", "secret", `["telemetry"]`, true, "2026-01-01T00:00:00Z"},
 				},
@@ -133,8 +133,8 @@ func TestWebhooks_List_Success(t *testing.T) {
 }
 
 func TestWebhooks_List_QueryError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -153,9 +153,9 @@ func TestWebhooks_List_QueryError(t *testing.T) {
 }
 
 func TestWebhooks_List_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -173,9 +173,9 @@ func TestWebhooks_List_Empty(t *testing.T) {
 }
 
 func TestWebhooks_Update_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -195,9 +195,9 @@ func TestWebhooks_Update_Success(t *testing.T) {
 }
 
 func TestWebhooks_Update_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 0}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 0}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -217,7 +217,7 @@ func TestWebhooks_Update_NotFound(t *testing.T) {
 }
 
 func TestWebhooks_Update_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -233,8 +233,8 @@ func TestWebhooks_Update_BadJSON(t *testing.T) {
 }
 
 func TestWebhooks_Update_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -255,9 +255,9 @@ func TestWebhooks_Update_ExecError(t *testing.T) {
 }
 
 func TestWebhooks_Delete_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -275,9 +275,9 @@ func TestWebhooks_Delete_Success(t *testing.T) {
 }
 
 func TestWebhooks_Delete_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 0}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 0}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -295,8 +295,8 @@ func TestWebhooks_Delete_NotFound(t *testing.T) {
 }
 
 func TestWebhooks_Delete_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -316,9 +316,9 @@ func TestWebhooks_Delete_ExecError(t *testing.T) {
 }
 
 func TestWebhooks_Deliveries_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"del_1", "wh_1", "telemetry", `{"temp":25}`, "success", 200, "2026-01-01T00:00:00Z"},
 				},
@@ -347,8 +347,8 @@ func TestWebhooks_Deliveries_Success(t *testing.T) {
 }
 
 func TestWebhooks_Deliveries_QueryError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -367,9 +367,9 @@ func TestWebhooks_Deliveries_QueryError(t *testing.T) {
 }
 
 func TestWebhooks_Deliveries_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}}
 	mux := http.NewServeMux()

@@ -6,14 +6,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestAudit_Query_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"aud_1", "admin", "create_device", "dev_001", `{}`, "2026-01-01T00:00:00Z"},
 				},
@@ -42,8 +42,8 @@ func TestAudit_Query_Success(t *testing.T) {
 }
 
 func TestAudit_Query_Error(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -62,9 +62,9 @@ func TestAudit_Query_Error(t *testing.T) {
 }
 
 func TestAudit_Query_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}}
 	mux := http.NewServeMux()

@@ -8,14 +8,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 type Module struct {
-	db sparkdb.DBClient
+	db db.DBClient
 }
 
-func New(db sparkdb.DBClient) *Module {
+func New(db db.DBClient) *Module {
 	return &Module{db: db}
 }
 
@@ -24,6 +25,9 @@ func (m *Module) Name() string { return "webhooks" }
 func (m *Module) Init(cfg any) error {
 	if err := m.db.Migrate("webhooks_v1", migrations); err != nil {
 		return fmt.Errorf("webhooks: migrate: %w", err)
+	}
+	if err := m.db.Migrate("webhooks_v2_org", orgMigration); err != nil {
+		return fmt.Errorf("webhooks: migrate org: %w", err)
 	}
 	slog.Info("webhooks module initialized")
 	return nil
@@ -65,43 +69,47 @@ type Delivery struct {
 	CreatedAt  string `json:"created_at"`
 }
 
+func orgID(r *http.Request) string { return r.Header.Get("X-Org-ID") }
+
 func (m *Module) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var wh Webhook
 	if err := json.NewDecoder(r.Body).Decode(&wh); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 	if wh.Name == "" || wh.URL == "" {
-		http.Error(w, `{"error":"name and url are required"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "name and url are required")
 		return
 	}
 	wh.ID = fmt.Sprintf("wh_%d", time.Now().UnixNano())
 	wh.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+	oid := orgID(r)
 
 	events, _ := json.Marshal(wh.Events)
 	_, err := m.db.Exec(
-		`INSERT INTO webhooks (id, name, url, secret, events, enabled, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		wh.ID, wh.Name, wh.URL, wh.Secret, string(events), wh.Enabled, wh.CreatedAt,
+		`INSERT INTO webhooks (id, name, url, secret, events, enabled, created_at, org_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		wh.ID, wh.Name, wh.URL, wh.Secret, string(events), wh.Enabled, wh.CreatedAt, oid,
 	)
 	if err != nil {
-		http.Error(w, `{"error":"failed to create webhook"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to create webhook")
 		return
 	}
 	writeJSON(w, http.StatusCreated, wh)
 }
 
 func (m *Module) handleList(w http.ResponseWriter, r *http.Request) {
+	oid := orgID(r)
 	rows, err := m.db.Query(
-		`SELECT id, name, url, secret, events, enabled, created_at FROM webhooks ORDER BY created_at DESC`,
+		`SELECT id, name, url, secret, events, enabled, created_at FROM webhooks WHERE org_id = ? ORDER BY created_at DESC`, oid,
 	)
 	if err != nil {
-		http.Error(w, `{"error":"query failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "query failed")
 		return
 	}
 	defer rows.Close()
 
-	var hooks []Webhook
+	hooks := make([]Webhook, 0)
 	for rows.Next() {
 		var wh Webhook
 		var eventsStr string
@@ -114,22 +122,23 @@ func (m *Module) handleList(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	oid := orgID(r)
 	var wh Webhook
 	if err := json.NewDecoder(r.Body).Decode(&wh); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 	events, _ := json.Marshal(wh.Events)
 	res, err := m.db.Exec(
-		`UPDATE webhooks SET name=?, url=?, secret=?, events=?, enabled=? WHERE id=?`,
-		wh.Name, wh.URL, wh.Secret, string(events), wh.Enabled, id,
+		`UPDATE webhooks SET name=?, url=?, secret=?, events=?, enabled=? WHERE id=? AND org_id=?`,
+		wh.Name, wh.URL, wh.Secret, string(events), wh.Enabled, id, oid,
 	)
 	if err != nil {
-		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "update failed")
 		return
 	}
 	if a, _ := res.RowsAffected(); a == 0 {
-		http.Error(w, `{"error":"webhook not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "webhook not found")
 		return
 	}
 	wh.ID = id
@@ -138,9 +147,10 @@ func (m *Module) handleUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	res, err := m.db.Exec(`DELETE FROM webhooks WHERE id = ?`, id)
+	oid := orgID(r)
+	res, err := m.db.Exec(`DELETE FROM webhooks WHERE id = ? AND org_id = ?`, id, oid)
 	if err != nil || func() int64 { a, _ := res.RowsAffected(); return a }() == 0 {
-		http.Error(w, `{"error":"webhook not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "webhook not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -148,17 +158,19 @@ func (m *Module) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleDeliveries(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	oid := orgID(r)
 	rows, err := m.db.Query(
-		`SELECT id, webhook_id, event, payload, status, status_code, created_at
-		 FROM webhook_deliveries WHERE webhook_id = ? ORDER BY created_at DESC LIMIT 50`, id,
+		`SELECT d.id, d.webhook_id, d.event, d.payload, d.status, d.status_code, d.created_at
+		 FROM webhook_deliveries d JOIN webhooks w ON w.id = d.webhook_id
+		 WHERE d.webhook_id = ? AND w.org_id = ? ORDER BY d.created_at DESC LIMIT 50`, id, oid,
 	)
 	if err != nil {
-		http.Error(w, `{"error":"query failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "query failed")
 		return
 	}
 	defer rows.Close()
 
-	var deliveries []Delivery
+	deliveries := make([]Delivery, 0)
 	for rows.Next() {
 		var d Delivery
 		rows.Scan(&d.ID, &d.WebhookID, &d.Event, &d.Payload, &d.Status, &d.StatusCode, &d.CreatedAt)

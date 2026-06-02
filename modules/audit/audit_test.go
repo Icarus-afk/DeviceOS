@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestAudit_Log(t *testing.T) {
 	var execd bool
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			execd = true
 			return nil, nil
 		},
@@ -26,7 +26,7 @@ func TestAudit_Log(t *testing.T) {
 
 func TestAudit_Init(t *testing.T) {
 	var migrated bool
-	m := &Module{db: &sparkdbtest.MockDB{
+	m := &Module{db: &dbtest.MockDB{
 		OnMigrate: func(name, sql string) error {
 			migrated = true
 			return nil

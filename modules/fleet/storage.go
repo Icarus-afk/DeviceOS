@@ -7,3 +7,5 @@ CREATE TABLE IF NOT EXISTS groups (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 `
+
+const orgMigration = `ALTER TABLE groups ADD COLUMN org_id TEXT NOT NULL DEFAULT '';`

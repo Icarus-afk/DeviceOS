@@ -5,12 +5,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestWebhooks_ModuleBasics(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	if m.Name() != "webhooks" {
 		t.Fatalf("expected webhooks, got %s", m.Name())
 	}
@@ -24,7 +24,7 @@ func TestWebhooks_ModuleBasics(t *testing.T) {
 
 func TestWebhooks_Init(t *testing.T) {
 	var migrated bool
-	m := &Module{db: &sparkdbtest.MockDB{
+	m := &Module{db: &dbtest.MockDB{
 		OnMigrate: func(name, sql string) error {
 			migrated = true
 			return nil
@@ -39,7 +39,7 @@ func TestWebhooks_Init(t *testing.T) {
 }
 
 func TestWebhooks_Init_Error(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
+	m := &Module{db: &dbtest.MockDB{
 		OnMigrate: func(name, sql string) error { return http.ErrAbortHandler },
 	}}
 	if err := m.Init(nil); err == nil {
@@ -61,9 +61,9 @@ func TestContains(t *testing.T) {
 
 func TestWebhooks_HandleDelete_ExecErrorCheck(t *testing.T) {
 	handlerCalled := false
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()

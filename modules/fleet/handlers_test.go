@@ -7,14 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestFleet_CreateGroup_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -39,7 +39,7 @@ func TestFleet_CreateGroup_Success(t *testing.T) {
 }
 
 func TestFleet_CreateGroup_MissingName(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestFleet_CreateGroup_MissingName(t *testing.T) {
 }
 
 func TestFleet_CreateGroup_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -71,8 +71,8 @@ func TestFleet_CreateGroup_BadJSON(t *testing.T) {
 }
 
 func TestFleet_CreateGroup_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -91,9 +91,9 @@ func TestFleet_CreateGroup_ExecError(t *testing.T) {
 }
 
 func TestFleet_ListGroups_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"grp_1", "fleet-a", "2026-01-01T00:00:00Z"},
 				},
@@ -122,8 +122,8 @@ func TestFleet_ListGroups_Success(t *testing.T) {
 }
 
 func TestFleet_ListGroups_QueryError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -142,9 +142,9 @@ func TestFleet_ListGroups_QueryError(t *testing.T) {
 }
 
 func TestFleet_ListGroups_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -162,9 +162,9 @@ func TestFleet_ListGroups_Empty(t *testing.T) {
 }
 
 func TestFleet_DeleteGroup_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -182,9 +182,9 @@ func TestFleet_DeleteGroup_Success(t *testing.T) {
 }
 
 func TestFleet_DeleteGroup_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 0}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 0}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -202,8 +202,8 @@ func TestFleet_DeleteGroup_NotFound(t *testing.T) {
 }
 
 func TestFleet_DeleteGroup_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -222,9 +222,9 @@ func TestFleet_DeleteGroup_ExecError(t *testing.T) {
 }
 
 func TestFleet_AddTags_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -244,9 +244,9 @@ func TestFleet_AddTags_Success(t *testing.T) {
 }
 
 func TestFleet_AddTags_DeviceNotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 0}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 0}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -266,7 +266,7 @@ func TestFleet_AddTags_DeviceNotFound(t *testing.T) {
 }
 
 func TestFleet_AddTags_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -282,8 +282,8 @@ func TestFleet_AddTags_BadJSON(t *testing.T) {
 }
 
 func TestFleet_AddTags_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -304,9 +304,9 @@ func TestFleet_AddTags_ExecError(t *testing.T) {
 }
 
 func TestFleet_SetGroup_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -326,9 +326,9 @@ func TestFleet_SetGroup_Success(t *testing.T) {
 }
 
 func TestFleet_SetGroup_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 0}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 0}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -348,7 +348,7 @@ func TestFleet_SetGroup_NotFound(t *testing.T) {
 }
 
 func TestFleet_SetGroup_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -364,8 +364,8 @@ func TestFleet_SetGroup_BadJSON(t *testing.T) {
 }
 
 func TestFleet_SetGroup_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -386,9 +386,9 @@ func TestFleet_SetGroup_ExecError(t *testing.T) {
 }
 
 func TestFleet_Health_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{
 				Row: []interface{}{10, 7, 3},
 			}
 		},

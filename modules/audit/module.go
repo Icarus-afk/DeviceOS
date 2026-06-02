@@ -7,14 +7,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 type Module struct {
-	db sparkdb.DBClient
+	db db.DBClient
 }
 
-func New(db sparkdb.DBClient) *Module {
+func New(db db.DBClient) *Module {
 	return &Module{db: db}
 }
 
@@ -23,6 +24,9 @@ func (m *Module) Name() string { return "audit" }
 func (m *Module) Init(cfg any) error {
 	if err := m.db.Migrate("audit_v1", migration); err != nil {
 		return fmt.Errorf("audit: migrate: %w", err)
+	}
+	if err := m.db.Migrate("audit_v2_org", orgMigration); err != nil {
+		return fmt.Errorf("audit: migrate org: %w", err)
 	}
 	slog.Info("audit module initialized")
 	return nil
@@ -39,6 +43,8 @@ func (m *Module) RegisterRoutes(mux any) error {
 
 func (m *Module) Start() error { return nil }
 func (m *Module) Stop() error  { return nil }
+
+func orgID(r *http.Request) string { return r.Header.Get("X-Org-ID") }
 
 type Entry struct {
 	ID        string          `json:"id"`
@@ -65,15 +71,16 @@ func (m *Module) handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := m.db.Query(
 		`SELECT id, actor, action, target, details, created_at
-		 FROM audit_log ORDER BY created_at DESC LIMIT ` + limit,
+		 FROM audit_log WHERE org_id = ? ORDER BY created_at DESC LIMIT `+limit,
+		orgID(r),
 	)
 	if err != nil {
-		http.Error(w, `{"error":"query failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "query failed")
 		return
 	}
 	defer rows.Close()
 
-	var entries []Entry
+	entries := make([]Entry, 0)
 	for rows.Next() {
 		var e Entry
 		var detailsStr string

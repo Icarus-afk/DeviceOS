@@ -7,14 +7,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 type Module struct {
-	db sparkdb.DBClient
+	db db.DBClient
 }
 
-func New(db sparkdb.DBClient) *Module {
+func New(db db.DBClient) *Module {
 	return &Module{db: db}
 }
 
@@ -23,6 +24,9 @@ func (m *Module) Name() string { return "fleet" }
 func (m *Module) Init(cfg any) error {
 	if err := m.db.Migrate("fleet_v1", migrations); err != nil {
 		return fmt.Errorf("fleet: migrate: %w", err)
+	}
+	if err := m.db.Migrate("fleet_v2_org", orgMigration); err != nil {
+		return fmt.Errorf("fleet: migrate org: %w", err)
 	}
 	slog.Info("fleet module initialized")
 	return nil
@@ -45,6 +49,8 @@ func (m *Module) RegisterRoutes(mux any) error {
 func (m *Module) Start() error { return nil }
 func (m *Module) Stop() error  { return nil }
 
+func orgID(r *http.Request) string { return r.Header.Get("X-Org-ID") }
+
 type Group struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
@@ -54,34 +60,34 @@ type Group struct {
 func (m *Module) handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 	var g Group
 	if err := json.NewDecoder(r.Body).Decode(&g); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 	if g.Name == "" {
-		http.Error(w, `{"error":"name is required"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "name is required")
 		return
 	}
 	g.ID = fmt.Sprintf("grp_%d", time.Now().UnixNano())
 	g.CreatedAt = time.Now()
 
-	_, err := m.db.Exec(`INSERT INTO groups (id, name, created_at) VALUES (?, ?, ?)`,
-		g.ID, g.Name, g.CreatedAt)
+	_, err := m.db.Exec(`INSERT INTO groups (id, name, created_at, org_id) VALUES (?, ?, ?, ?)`,
+		g.ID, g.Name, g.CreatedAt, orgID(r))
 	if err != nil {
 		slog.Error("create group", "error", err)
-		http.Error(w, `{"error":"failed to create group"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to create group")
 		return
 	}
 	writeJSON(w, http.StatusCreated, g)
 }
 
 func (m *Module) handleListGroups(w http.ResponseWriter, r *http.Request) {
-	rows, err := m.db.Query(`SELECT id, name, created_at FROM groups ORDER BY name`)
+	rows, err := m.db.Query(`SELECT id, name, created_at FROM groups WHERE org_id = ? ORDER BY name`, orgID(r))
 	if err != nil {
-		http.Error(w, `{"error":"query failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "query failed")
 		return
 	}
 	defer rows.Close()
-	var groups []Group
+	groups := make([]Group, 0)
 	for rows.Next() {
 		var g Group
 		rows.Scan(&g.ID, &g.Name, &g.CreatedAt)
@@ -92,13 +98,13 @@ func (m *Module) handleListGroups(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleDeleteGroup(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	res, err := m.db.Exec(`DELETE FROM groups WHERE id = ?`, id)
+	res, err := m.db.Exec(`DELETE FROM groups WHERE id = ? AND org_id = ?`, id, orgID(r))
 	if err != nil {
-		http.Error(w, `{"error":"delete failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "delete failed")
 		return
 	}
 	if a, _ := res.RowsAffected(); a == 0 {
-		http.Error(w, `{"error":"group not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "group not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -112,17 +118,17 @@ func (m *Module) handleAddTags(w http.ResponseWriter, r *http.Request) {
 	deviceID := r.PathValue("id")
 	var req TagsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 	tagsJSON, _ := json.Marshal(req.Tags)
-	res, err := m.db.Exec(`UPDATE devices SET tags=? WHERE id=?`, string(tagsJSON), deviceID)
+	res, err := m.db.Exec(`UPDATE devices SET tags=? WHERE id=? AND org_id=?`, string(tagsJSON), deviceID, orgID(r))
 	if err != nil {
-		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "update failed")
 		return
 	}
 	if a, _ := res.RowsAffected(); a == 0 {
-		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "device not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tags": req.Tags})
@@ -136,16 +142,16 @@ func (m *Module) handleSetGroup(w http.ResponseWriter, r *http.Request) {
 	deviceID := r.PathValue("id")
 	var req GroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
-	res, err := m.db.Exec(`UPDATE devices SET device_group=? WHERE id=?`, req.Group, deviceID)
+	res, err := m.db.Exec(`UPDATE devices SET device_group=? WHERE id=? AND org_id=?`, req.Group, deviceID, orgID(r))
 	if err != nil {
-		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "update failed")
 		return
 	}
 	if a, _ := res.RowsAffected(); a == 0 {
-		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "device not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"group": req.Group})
@@ -157,7 +163,7 @@ func (m *Module) handleHealth(w http.ResponseWriter, r *http.Request) {
 		COUNT(*),
 		COALESCE(SUM(CASE WHEN status='online' THEN 1 ELSE 0 END), 0),
 		COALESCE(SUM(CASE WHEN status='offline' THEN 1 ELSE 0 END), 0)
-	FROM devices`).Scan(&total, &online, &offline)
+	FROM devices WHERE org_id = ?`, orgID(r)).Scan(&total, &online, &offline)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"total_devices":   total,

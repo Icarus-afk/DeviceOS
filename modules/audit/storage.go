@@ -16,3 +16,5 @@ CREATE INDEX IF NOT EXISTS idx_audit_created
 CREATE INDEX IF NOT EXISTS idx_audit_actor
     ON audit_log(actor);
 `
+
+const orgMigration = `ALTER TABLE audit_log ADD COLUMN org_id TEXT NOT NULL DEFAULT '';`

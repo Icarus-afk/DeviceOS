@@ -1,5 +1,7 @@
 package webhooks
 
+const orgMigration = `ALTER TABLE webhooks ADD COLUMN org_id TEXT NOT NULL DEFAULT '';`
+
 const migrations = `
 CREATE TABLE IF NOT EXISTS webhooks (
     id         TEXT PRIMARY KEY,
