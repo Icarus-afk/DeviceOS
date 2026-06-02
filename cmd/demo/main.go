@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
+	dbpkg "github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 	"github.com/lohtbrok/deviceos/internal/server"
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
 	"github.com/lohtbrok/deviceos/internal/version"
 	"github.com/lohtbrok/deviceos/modules/alerts"
 	"github.com/lohtbrok/deviceos/modules/audit"
@@ -70,9 +70,9 @@ func main() {
 	r := &Report{}
 	now := time.Now()
 
-	db := &sparkdbtest.MockDB{}
+	db := &dbtest.MockDB{}
 	devMod := devices.New(db)
-	telMod := telemetry.New(db)
+	telMod := telemetry.New(db, 30*24*time.Hour, time.Hour)
 	alertMod := alerts.New(db)
 	authMod := auth.New(db, "demo-secret", "dos_demo_admin_key")
 	cmdMod := commands.New(db)
@@ -84,7 +84,7 @@ func main() {
 	simMod := simulator.New()
 	dashMod := dashboard.New()
 
-	telMod.SetTelemetryHook(alertMod.OnTelemetry)
+	telMod.AddTelemetryHook(alertMod.OnTelemetry)
 
 	mux := http.NewServeMux()
 	srv := server.New(server.Config{Host: "127.0.0.1", Port: 0})
@@ -169,16 +169,16 @@ func main() {
 	section = "2. Authentication"
 
 	correctKey := "dos_demo_admin_key"
-	db.OnQueryRow = func(sql string, args []interface{}) sparkdb.RowInterface {
+	db.OnQueryRow = func(sql string, args []interface{}) dbpkg.RowInterface {
 		if strings.Contains(sql, "FROM api_keys") {
 			if len(args) > 0 {
 				if key, ok := args[0].(string); ok && key == correctKey {
-					return &sparkdbtest.MockRow{Row: []interface{}{"admin"}}
+					return &dbtest.MockRow{Row: []interface{}{"admin"}}
 				}
 			}
-			return &sparkdbtest.MockRow{Err: fmt.Errorf("no rows")}
+			return &dbtest.MockRow{Err: fmt.Errorf("no rows")}
 		}
-		return &sparkdbtest.MockRow{Err: fmt.Errorf("no rows")}
+		return &dbtest.MockRow{Err: fmt.Errorf("no rows")}
 	}
 
 	code, resp = exec("POST", "/api/v1/auth/login", `{"api_key":"dos_demo_admin_key"}`)
@@ -204,35 +204,35 @@ func main() {
 	deviceID := "dev_demo_001"
 
 	// Reset mock DB for devices
-	db.OnExec = func(sql string, args []interface{}) (sparkdb.Result, error) {
+	db.OnExec = func(sql string, args []interface{}) (dbpkg.Result, error) {
 		if strings.Contains(sql, "INSERT INTO devices") {
-			return &sparkdbtest.MockResult{LastID: 1, Affected: 1}, nil
+			return &dbtest.MockResult{LastID: 1, Affected: 1}, nil
 		}
 		if strings.Contains(sql, "DELETE FROM devices") {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+			return &dbtest.MockResult{Affected: 1}, nil
 		}
-		return &sparkdbtest.MockResult{Affected: 1}, nil
+		return &dbtest.MockResult{Affected: 1}, nil
 	}
-	db.OnQuery = func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	db.OnQuery = func(sql string, args []interface{}) (dbpkg.RowsInterface, error) {
 		if strings.Contains(sql, "FROM devices") {
-			return &sparkdbtest.MockRows{
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{deviceID, "temp-sensor-01", "temp-sensor", `{"floor":3,"building":"A"}`, `["sensor","production"]`, "floor-3", "online", now, now, now},
 				},
 			}, nil
 		}
-		return &sparkdbtest.MockRows{}, nil
+		return &dbtest.MockRows{}, nil
 	}
-	db.OnQueryRow = func(sql string, args []interface{}) sparkdb.RowInterface {
+	db.OnQueryRow = func(sql string, args []interface{}) dbpkg.RowInterface {
 		if strings.Contains(sql, "FROM devices") {
-			return &sparkdbtest.MockRow{
+			return &dbtest.MockRow{
 				Row: []interface{}{deviceID, "temp-sensor-01", "temp-sensor", `{"floor":3,"building":"A"}`, `["sensor","production"]`, "floor-3", "online", now, now, now},
 			}
 		}
 		if strings.Contains(sql, "FROM api_keys") {
-			return &sparkdbtest.MockRow{Row: []interface{}{"admin"}}
+			return &dbtest.MockRow{Row: []interface{}{"admin"}}
 		}
-		return &sparkdbtest.MockRow{Err: fmt.Errorf("no rows")}
+		return &dbtest.MockRow{Err: fmt.Errorf("no rows")}
 	}
 
 	code, resp = execAuthRaw("POST", "/api/v1/devices", `{"name":"temp-sensor-01","type":"temp-sensor","metadata":{"floor":3,"building":"A"}}`, token)
@@ -262,12 +262,12 @@ func main() {
 	// ── 4. Telemetry ────────────────────────────────────────────
 	section = "4. Telemetry"
 
-	db.OnExec = func(sql string, args []interface{}) (sparkdb.Result, error) {
-		return &sparkdbtest.MockResult{LastID: 1, Affected: 1}, nil
+	db.OnExec = func(sql string, args []interface{}) (dbpkg.Result, error) {
+		return &dbtest.MockResult{LastID: 1, Affected: 1}, nil
 	}
-	db.OnQuery = func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	db.OnQuery = func(sql string, args []interface{}) (dbpkg.RowsInterface, error) {
 		if strings.Contains(sql, "FROM telemetry") {
-			return &sparkdbtest.MockRows{
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{int64(1), "dev_001", now, `{"temperature":23.5,"humidity":60,"battery":85}`, `{}`},
 					{int64(2), "dev_001", now, `{"temperature":47.2,"humidity":55,"battery":73}`, `{}`},
@@ -275,24 +275,24 @@ func main() {
 			}, nil
 		}
 		if strings.Contains(sql, "FROM devices") {
-			return &sparkdbtest.MockRows{
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{deviceID, "temp-sensor-01", "temp-sensor", `{}`, `[]`, "", "online", now, now, now},
 				},
 			}, nil
 		}
-		return &sparkdbtest.MockRows{}, nil
+		return &dbtest.MockRows{}, nil
 	}
-	db.OnQueryRow = func(sql string, args []interface{}) sparkdb.RowInterface {
+	db.OnQueryRow = func(sql string, args []interface{}) dbpkg.RowInterface {
 		if strings.Contains(sql, "FROM telemetry") {
-			return &sparkdbtest.MockRow{
+			return &dbtest.MockRow{
 				Row: []interface{}{int64(2), "dev_001", now, `{"temperature":47.2,"humidity":55}`, `{}`},
 			}
 		}
 		if strings.Contains(sql, "FROM api_keys") {
-			return &sparkdbtest.MockRow{Row: []interface{}{"admin"}}
+			return &dbtest.MockRow{Row: []interface{}{"admin"}}
 		}
-		return &sparkdbtest.MockRow{Err: fmt.Errorf("no rows")}
+		return &dbtest.MockRow{Err: fmt.Errorf("no rows")}
 	}
 
 	code, resp = execAuth("POST", "/api/v1/telemetry", `{"device_id":"dev_001","metrics":{"temperature":23.5,"humidity":60,"battery":85}}`, token)
@@ -313,34 +313,34 @@ func main() {
 	// ── 5. Alerts ──────────────────────────────────────────────
 	section = "5. Alert Rules & Evaluation"
 	ruleID := "rule_demo_001"
-	dbAlert := &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	dbAlert := &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (dbpkg.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+		OnQuery: func(sql string, args []interface{}) (dbpkg.RowsInterface, error) {
 			if strings.Contains(sql, "FROM alert_rules") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{ruleID, "high-temp", "temperature", ">", 45.0, "", "log", "", 1, now},
 					},
 				}, nil
 			}
 			if strings.Contains(sql, "FROM alert_events") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{"evt_001", ruleID, "high-temp", "dev_001", "temperature", 47.2, "Temperature 47.20 exceeds threshold 45.00", "critical", now},
 					},
 				}, nil
 			}
-			return &sparkdbtest.MockRows{}, nil
+			return &dbtest.MockRows{}, nil
 		},
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
+		OnQueryRow: func(sql string, args []interface{}) dbpkg.RowInterface {
 			if strings.Contains(sql, "FROM alert_rules WHERE") || strings.Contains(sql, "FROM alert_rules") {
-				return &sparkdbtest.MockRow{
+				return &dbtest.MockRow{
 					Row: []interface{}{ruleID, "high-temp", "temperature", ">", 45.0, "", "log", "", 1, now},
 				}
 			}
-			return &sparkdbtest.MockRow{Err: fmt.Errorf("no rows")}
+			return &dbtest.MockRow{Err: fmt.Errorf("no rows")}
 		},
 		OnMigrate: func(name, sql string) error { return nil },
 	}
@@ -380,27 +380,27 @@ func main() {
 	// ── 6. Commands ─────────────────────────────────────────────
 	section = "6. Remote Commands"
 	cmdID := "cmd_demo_001"
-	dbCmd := &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	dbCmd := &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (dbpkg.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+		OnQuery: func(sql string, args []interface{}) (dbpkg.RowsInterface, error) {
 			if strings.Contains(sql, "FROM commands") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{cmdID, "dev_001", "reboot", `{"delay":5}`, "pending", nil, now, nil},
 					},
 				}, nil
 			}
-			return &sparkdbtest.MockRows{}, nil
+			return &dbtest.MockRows{}, nil
 		},
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
+		OnQueryRow: func(sql string, args []interface{}) dbpkg.RowInterface {
 			if strings.Contains(sql, "FROM commands") {
-				return &sparkdbtest.MockRow{
+				return &dbtest.MockRow{
 					Row: []interface{}{cmdID, "dev_001", "reboot", `{"delay":5}`, "delivered", nil, now, nil},
 				}
 			}
-			return &sparkdbtest.MockRow{Err: fmt.Errorf("no rows")}
+			return &dbtest.MockRow{Err: fmt.Errorf("no rows")}
 		},
 	}
 
@@ -437,39 +437,39 @@ func main() {
 	section = "7. OTA Firmware Updates"
 	fwID := "fw_demo_001"
 	depID := "dep_demo_001"
-	dbOTA := &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	dbOTA := &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (dbpkg.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+		OnQuery: func(sql string, args []interface{}) (dbpkg.RowsInterface, error) {
 			if strings.Contains(sql, "FROM firmware") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{fwID, "1.0.0", "release", "nrf52", "abc123def456", 65536, now},
 					},
 				}, nil
 			}
 			if strings.Contains(sql, "FROM deployments") && !strings.Contains(sql, "deployment_devices") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{depID, fwID, "1.0.0", "in_progress", 2, 1, now},
 					},
 				}, nil
 			}
-			return &sparkdbtest.MockRows{}, nil
+			return &dbtest.MockRows{}, nil
 		},
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
+		OnQueryRow: func(sql string, args []interface{}) dbpkg.RowInterface {
 			if strings.Contains(sql, "FROM firmware") {
-				return &sparkdbtest.MockRow{
+				return &dbtest.MockRow{
 					Row: []interface{}{fwID, "1.0.0", "release", "nrf52", "abc123def456", 65536, now},
 				}
 			}
 			if strings.Contains(sql, "FROM deployments") {
-				return &sparkdbtest.MockRow{
+				return &dbtest.MockRow{
 					Row: []interface{}{depID, fwID, "1.0.0", "completed", 2, 2, now},
 				}
 			}
-			return &sparkdbtest.MockRow{Err: fmt.Errorf("no rows")}
+			return &dbtest.MockRow{Err: fmt.Errorf("no rows")}
 		},
 	}
 
@@ -512,34 +512,34 @@ func main() {
 	// ── 8. Webhooks ────────────────────────────────────────────
 	section = "8. Webhooks"
 	whID := "wh_demo_001"
-	dbWH := &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	dbWH := &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (dbpkg.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+		OnQuery: func(sql string, args []interface{}) (dbpkg.RowsInterface, error) {
 			if strings.Contains(sql, "FROM webhooks") && !strings.Contains(sql, "webhook_deliveries") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{whID, "slack-alerts", "https://hooks.example.com/alert", "sec_123", `["alert.fired","device.registered"]`, 1, now},
 					},
 				}, nil
 			}
 			if strings.Contains(sql, "FROM webhook_deliveries") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{"del_001", whID, "alert.fired", `{"severity":"critical"}`, "delivered", 200, now},
 					},
 				}, nil
 			}
-			return &sparkdbtest.MockRows{}, nil
+			return &dbtest.MockRows{}, nil
 		},
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
+		OnQueryRow: func(sql string, args []interface{}) dbpkg.RowInterface {
 			if strings.Contains(sql, "FROM webhooks WHERE") || strings.Contains(sql, "FROM webhooks ORDER") {
-				return &sparkdbtest.MockRow{
+				return &dbtest.MockRow{
 					Row: []interface{}{whID, "slack-alerts", "https://hooks.example.com/alert", "sec_123", `["alert.fired","device.registered"]`, 1, now},
 				}
 			}
-			return &sparkdbtest.MockRow{Err: fmt.Errorf("no rows")}
+			return &dbtest.MockRow{Err: fmt.Errorf("no rows")}
 		},
 	}
 
@@ -578,32 +578,32 @@ func main() {
 	// ── 9. Fleet Management ────────────────────────────────────
 	section = "9. Fleet Management"
 	groupID := "grp_demo_001"
-	dbFleet := &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	dbFleet := &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (dbpkg.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+		OnQuery: func(sql string, args []interface{}) (dbpkg.RowsInterface, error) {
 			if strings.Contains(sql, "FROM groups") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{groupID, "dhaka-fleet", now},
 					},
 				}, nil
 			}
-			return &sparkdbtest.MockRows{}, nil
+			return &dbtest.MockRows{}, nil
 		},
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
+		OnQueryRow: func(sql string, args []interface{}) dbpkg.RowInterface {
 			if strings.Contains(sql, "FROM groups") {
-				return &sparkdbtest.MockRow{
+				return &dbtest.MockRow{
 					Row: []interface{}{groupID, "dhaka-fleet", now},
 				}
 			}
 			if strings.Contains(sql, "FROM devices") {
-				return &sparkdbtest.MockRow{
+				return &dbtest.MockRow{
 					Row: []interface{}{"dev_001", "truck-001", "gps-tracker", `{}`, `["critical"]`, "dhaka-fleet", "online", now, now, now},
 				}
 			}
-			return &sparkdbtest.MockRow{Err: fmt.Errorf("no rows")}
+			return &dbtest.MockRow{Err: fmt.Errorf("no rows")}
 		},
 	}
 
@@ -643,26 +643,26 @@ func main() {
 	section = "10. Multi-Tenancy"
 	orgID := "org_demo_001"
 	userID := "usr_demo_001"
-	dbTenant := &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	dbTenant := &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (dbpkg.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+		OnQuery: func(sql string, args []interface{}) (dbpkg.RowsInterface, error) {
 			if strings.Contains(sql, "FROM orgs") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{orgID, "Acme IoT", now},
 					},
 				}, nil
 			}
 			if strings.Contains(sql, "FROM org_users") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{userID, orgID, "ops@acme.io", "admin", now},
 					},
 				}, nil
 			}
-			return &sparkdbtest.MockRows{}, nil
+			return &dbtest.MockRows{}, nil
 		},
 	}
 
@@ -700,13 +700,13 @@ func main() {
 
 	// ── 11. Audit Log ──────────────────────────────────────────
 	section = "11. Audit Log"
-	dbAudit := &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	dbAudit := &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (dbpkg.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+		OnQuery: func(sql string, args []interface{}) (dbpkg.RowsInterface, error) {
 			if strings.Contains(sql, "FROM audit_log") {
-				return &sparkdbtest.MockRows{
+				return &dbtest.MockRows{
 					Rows: [][]interface{}{
 						{"aud_001", "admin", "device.register", "dev_001", `{"name":"temp-sensor-01"}`, now},
 						{"aud_002", "admin", "device.delete", "dev_001", `{}`, now},
@@ -714,7 +714,7 @@ func main() {
 					},
 				}, nil
 			}
-			return &sparkdbtest.MockRows{}, nil
+			return &dbtest.MockRows{}, nil
 		},
 	}
 
@@ -903,13 +903,9 @@ func genReport(r *Report) {
 	p("|                    +----+-----+                                 |")
 	p("|                         |                                       |")
 	p("|                    +----V--------------+                        |")
-	p("|                    |  SparkDB Client   |                        |")
-	p("|                    |  (SQL-over-HTTP)  |                        |")
-	p("|                    +----+--------------+                        |")
-	p("|                         |                                       |")
-	p("|                    +----V-----+                                 |")
-	p("|                    | SparkDB  |                                 |")
-	p("|                    | (subproc)|                                 |")
+	p("|                    +----V--------------+                        |")
+	p("|                    |    SQLite (WAL)   |                        |")
+	p("|                    +-------------------+                        |")
 	p("|                    +----------+                                 |")
 	p("+-----------------------------------------------------------------+")
 	p("```")

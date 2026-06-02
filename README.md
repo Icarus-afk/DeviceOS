@@ -10,23 +10,30 @@ DeviceOS manages device authentication, telemetry ingestion, real-time dashboard
 # Build
 make build
 
-# Init default config
+# Init default config and data directory
 make init
 
 # Start
 make run
 # Server listening on http://0.0.0.0:8080
+
+# Health check
+curl http://localhost:8080/healthz
+{"status":"ok","version":"0.1.0 Hummingbird","uptime":"0m3s"}
 ```
 
 ## Documentation
 
 | File | Contents |
 |------|----------|
-| [Docs/architecture.md](Docs/architecture.md) | System architecture |
+| [Docs/api.md](Docs/api.md) | API quickstart with curl workflows |
+| [Docs/architecture.md](Docs/architecture.md) | System architecture, module system, data flow |
 | [Docs/configuration.md](Docs/configuration.md) | All config options (YAML + env vars) |
-| [Docs/deployment.md](Docs/deployment.md) | Deployment guide |
+| [Docs/deployment.md](Docs/deployment.md) | Deployment guide (Docker, systemd, production) |
 | [Docs/development.md](Docs/development.md) | Module development guide |
-| [Docs/openapi.yaml](Docs/openapi.yaml) | API specification |
+| [Docs/troubleshooting.md](Docs/troubleshooting.md) | FAQ, common issues, gotchas |
+| [Docs/openapi.yaml](Docs/openapi.yaml) | Full OpenAPI 3.0 specification |
+| [Docs/contributing.md](Docs/contributing.md) | Contributing guidelines |
 
 ## Feature Overview
 
@@ -51,3 +58,4 @@ make run
 - **Auth:** JWT (HMAC-SHA256) + API keys
 - **WebSocket:** `gorilla/websocket` for real-time telemetry and events
 - **MQTT:** Embedded broker via `mochi-mqtt` (pure Go, no CGO)
+- **Container:** Distroless Docker image (~6.5 MB)

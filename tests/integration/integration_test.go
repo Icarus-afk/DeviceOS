@@ -3,21 +3,19 @@
 package integration
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/lohtbrok/deviceos/internal/db"
 	"github.com/lohtbrok/deviceos/internal/registry"
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
 	"github.com/lohtbrok/deviceos/modules/alerts"
 	"github.com/lohtbrok/deviceos/modules/audit"
 	"github.com/lohtbrok/deviceos/modules/auth"
@@ -40,28 +38,25 @@ var (
 func TestMain(m *testing.M) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError})))
 
-	sparkDir, err := os.MkdirTemp("", "sparkdb-integration-*")
+	dbFile, err := os.CreateTemp("", "deviceos-integration-*.db")
 	if err != nil {
-		slog.Error("mkdir temp", "error", err)
+		slog.Error("create temp db", "error", err)
 		os.Exit(1)
 	}
-	defer os.RemoveAll(sparkDir)
+	dbPath := dbFile.Name()
+	dbFile.Close()
+	defer os.Remove(dbPath)
 
-	sparkSrv := sparkdb.NewServer(sparkdb.ServerConfig{
-		BinPath: os.Getenv("SPARKDB_BIN"),
-		DataDir: sparkDir,
-	})
-
-	ctx := context.Background()
-	if err := sparkSrv.Start(ctx); err != nil {
-		slog.Error("start sparkdb", "error", err)
+	database, err := db.Open(db.Config{Path: dbPath})
+	if err != nil {
+		slog.Error("open db", "error", err)
 		os.Exit(1)
 	}
+	defer database.Close()
 
-	stopDeviceOS, err := startDeviceOS(fmt.Sprintf("http://127.0.0.1:%d", sparkSrv.Port))
+	stopDeviceOS, err := startDeviceOS(database)
 	if err != nil {
 		slog.Error("start deviceos", "error", err)
-		sparkSrv.Stop()
 		os.Exit(1)
 	}
 	slog.Info("deviceos started", "url", deviceosBaseURL)
@@ -69,44 +64,28 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	stopDeviceOS()
-	sparkSrv.Stop()
 	os.Exit(code)
 }
 
-func startDeviceOS(sparkdbURL string) (func(), error) {
-	u, _ := url.Parse(sparkdbURL)
-	host := u.Hostname()
-	portStr := u.Port()
-	var port int
-	fmt.Sscanf(portStr, "%d", &port)
-
+func startDeviceOS(database db.DBClient) (func(), error) {
 	os.Setenv("DEVICEOS_JWT_SECRET", "integration-test-jwt-secret-32bytes")
 	os.Setenv("DEVICEOS_ADMIN_TOKEN", "dos_integration_admin_token_0001")
 
-	db, err := sparkdb.Open(sparkdb.Config{
-		Host:     host,
-		Port:     port,
-		Database: "deviceos",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("sparkdb open: %w", err)
-	}
-
 	r := registry.New()
-	authMod := auth.New(db, "integration-test-jwt-secret-32bytes", "dos_integration_admin_token_0001")
+	authMod := auth.New(database, "integration-test-jwt-secret-32bytes", "dos_integration_admin_token_0001")
 	r.Register(authMod)
-	r.Register(devices.New(db))
-	telemetryMod := telemetry.New(db)
+	r.Register(devices.New(database))
+	telemetryMod := telemetry.New(database)
 	r.Register(telemetryMod)
-	alertsMod := alerts.New(db)
+	alertsMod := alerts.New(database)
 	r.Register(alertsMod)
-	telemetryMod.SetTelemetryHook(alertsMod.OnTelemetry)
-	r.Register(commands.New(db))
-	r.Register(ota.New(db))
-	r.Register(webhooks.New(db))
-	r.Register(fleet.New(db))
-	r.Register(tenant.New(db))
-	r.Register(audit.New(db))
+	telemetryMod.AddTelemetryHook(alertsMod.OnTelemetry)
+	r.Register(commands.New(database))
+	r.Register(ota.New(database))
+	r.Register(webhooks.New(database))
+	r.Register(fleet.New(database))
+	r.Register(tenant.New(database))
+	r.Register(audit.New(database))
 	r.Register(simulator.New())
 	r.Register(dashboard.New())
 
@@ -117,11 +96,11 @@ func startDeviceOS(sparkdbURL string) (func(), error) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 	if err := r.InitAll(nil); err != nil {
-		db.Close()
+		database.Close()
 		return nil, fmt.Errorf("init modules: %w", err)
 	}
 	if err := r.RegisterAllRoutes(mux); err != nil {
-		db.Close()
+		database.Close()
 		return nil, fmt.Errorf("register routes: %w", err)
 	}
 
@@ -147,7 +126,6 @@ func startDeviceOS(sparkdbURL string) (func(), error) {
 
 	return func() {
 		ts.Close()
-		db.Close()
 	}, nil
 }
 
