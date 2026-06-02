@@ -1,4 +1,4 @@
-package sparkdb
+package db
 
 import "fmt"
 

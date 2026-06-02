@@ -1,36 +1,35 @@
-package sparkdbtest
+package dbtest
 
 import (
 	"fmt"
 	"reflect"
 	"time"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+	"github.com/lohtbrok/deviceos/internal/db"
 )
 
-// MockDB implements sparkdb.DBClient for testing.
 type MockDB struct {
-	OnExec    func(sql string, args []interface{}) (sparkdb.Result, error)
-	OnQuery   func(sql string, args []interface{}) (sparkdb.RowsInterface, error)
-	OnQueryRow func(sql string, args []interface{}) sparkdb.RowInterface
-	OnMigrate func(name, sql string) error
+	OnExec     func(sql string, args []interface{}) (db.Result, error)
+	OnQuery    func(sql string, args []interface{}) (db.RowsInterface, error)
+	OnQueryRow func(sql string, args []interface{}) db.RowInterface
+	OnMigrate  func(name, sql string) error
 }
 
-func (m *MockDB) Exec(sql string, args ...interface{}) (sparkdb.Result, error) {
+func (m *MockDB) Exec(sql string, args ...interface{}) (db.Result, error) {
 	if m.OnExec != nil {
 		return m.OnExec(sql, args)
 	}
 	return &MockResult{}, nil
 }
 
-func (m *MockDB) Query(sql string, args ...interface{}) (sparkdb.RowsInterface, error) {
+func (m *MockDB) Query(sql string, args ...interface{}) (db.RowsInterface, error) {
 	if m.OnQuery != nil {
 		return m.OnQuery(sql, args)
 	}
 	return &MockRows{}, nil
 }
 
-func (m *MockDB) QueryRow(sql string, args ...interface{}) sparkdb.RowInterface {
+func (m *MockDB) QueryRow(sql string, args ...interface{}) db.RowInterface {
 	if m.OnQueryRow != nil {
 		return m.OnQueryRow(sql, args)
 	}
@@ -44,16 +43,14 @@ func (m *MockDB) Migrate(name, sql string) error {
 	return nil
 }
 
-// MockResult implements sparkdb.Result.
 type MockResult struct {
-	LastID  int64
+	LastID   int64
 	Affected int64
 }
 
 func (r *MockResult) LastInsertId() (int64, error) { return r.LastID, nil }
 func (r *MockResult) RowsAffected() (int64, error) { return r.Affected, nil }
 
-// MockRows implements sparkdb.RowsInterface for testing.
 type MockRows struct {
 	Columns []string
 	Rows    [][]interface{}
@@ -86,10 +83,9 @@ func (r *MockRows) Scan(dest ...interface{}) error {
 func (r *MockRows) Close() error { return nil }
 func (r *MockRows) Err() error   { return r.ErrVal }
 
-// MockRow implements sparkdb.RowInterface for testing.
 type MockRow struct {
-	Row  []interface{}
-	Err  error
+	Row []interface{}
+	Err error
 }
 
 func (r *MockRow) Scan(dest ...interface{}) error {
