@@ -1,0 +1,2579 @@
+openapi: "3.0.0"
+info:
+  title: DeviceOS API
+  description: |
+    DeviceOS is a self-hostable, single-binary IoT backend platform for device
+    registration, telemetry ingestion, remote commands, OTA firmware updates,
+    alerting, and fleet management.
+
+    ## Authentication
+
+    - **Admin/User**: `Authorization: Bearer <jwt>` header
+    - **Device/API Key**: `Authorization: ApiKey <key>` header
+    - **Multi-tenancy**: `X-Org-ID` header for org-scoped operations
+
+    All request and response bodies use `application/json` unless otherwise noted.
+  version: 0.1.0
+  contact:
+    name: DeviceOS Team
+    url: "https://deviceos.example.com"
+
+servers:
+  - url: "https://{region}.deviceos.example.com/{basePath}"
+    description: Production server
+    variables:
+      region:
+        default: us-east
+        description: Deployment region
+      basePath:
+        default: api
+        description: API base path
+  - url: "http://localhost:8080/{basePath}"
+    description: Local development
+    variables:
+      basePath:
+        default: api
+        description: API base path
+
+paths:
+  # ────────────────────────────── Server ──────────────────────────────
+  /healthz:
+    get:
+      summary: Health check endpoint
+      operationId: healthCheck
+      tags:
+        - Server
+      responses:
+        "200":
+          description: Server health status
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - version
+                  - uptime
+                  - modules
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+                    example: 0.1.0
+                  uptime:
+                    type: string
+                    example: 5d12h34m
+                  modules:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    example:
+                      auth: running
+                      telemetry: running
+                      ota: running
+
+  # ────────────────────────────── Auth ──────────────────────────────
+  /api/v1/auth/login:
+    post:
+      summary: Login with API key
+      operationId: authLogin
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - api_key
+              properties:
+                api_key:
+                  type: string
+                  description: Admin or user API key
+              example:
+                api_key: sk-abc123...
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/token:
+    post:
+      summary: Authenticate a device and retrieve a JWT token
+      operationId: authToken
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - device_id
+                - secret_key
+              properties:
+                device_id:
+                  type: string
+                  description: Unique device identifier
+                secret_key:
+                  type: string
+                  description: Device secret key (returned at registration)
+              example:
+                device_id: truck-001
+                secret_key: sk-device-abc123
+      responses:
+        "200":
+          description: Device token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - token
+                  - role
+                properties:
+                  token:
+                    type: string
+                    description: JWT token for device authentication
+                  role:
+                    type: string
+                    enum:
+                      - device
+                    description: Assigned role
+              example:
+                token: eyJhbGciOiJIUzI1NiIs...
+                role: device
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ────────────────────────────── Devices ──────────────────────────────
+  /api/v1/devices:
+    post:
+      summary: Register a new device
+      operationId: createDevice
+      tags:
+        - Devices
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeviceRequest"
+      responses:
+        "201":
+          description: Device created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - device
+                  - secret_key
+                properties:
+                  device:
+                    $ref: "#/components/schemas/Device"
+                  secret_key:
+                    type: string
+                    description: Device secret key (only returned at creation)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List all devices
+      operationId: listDevices
+      tags:
+        - Devices
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: group
+          in: query
+          schema:
+            type: string
+          description: Filter by group name
+        - name: type
+          in: query
+          schema:
+            type: string
+          description: Filter by device type
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - online
+              - offline
+          description: Filter by connection status
+        - name: tag
+          in: query
+          schema:
+            type: string
+          description: Filter by tag (exact match)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+          description: Maximum number of devices to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of devices to skip
+      responses:
+        "200":
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - devices
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Device"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/devices/{id}:
+    get:
+      summary: Get a device by ID
+      operationId: getDevice
+      tags:
+        - Devices
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Device ID
+      responses:
+        "200":
+          description: Device object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      summary: Update a device
+      operationId: updateDevice
+      tags:
+        - Devices
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Device ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeviceRequest"
+      responses:
+        "200":
+          description: Updated device object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete a device
+      operationId: deleteDevice
+      tags:
+        - Devices
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Device ID
+      responses:
+        "204":
+          description: Device deleted successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ────────────────────────────── Telemetry ──────────────────────────────
+  /api/v1/telemetry:
+    post:
+      summary: Ingest telemetry data from a device
+      operationId: createTelemetry
+      tags:
+        - Telemetry
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - device_id
+                - secret_key
+                - metrics
+              properties:
+                device_id:
+                  type: string
+                  description: Source device ID
+                secret_key:
+                  type: string
+                  description: Device secret key for authentication
+                timestamp:
+                  type: string
+                  format: date-time
+                  description: ISO 8601 timestamp (defaults to server time if omitted)
+                metrics:
+                  type: object
+                  description: Arbitrary metric key-value pairs
+                  example:
+                    temperature: 31.2
+                    humidity: 68
+                    battery: 82
+                metadata:
+                  type: object
+                  description: Arbitrary metadata key-value pairs
+                  example:
+                    location: dhaka
+                    firmware: v2.1.0
+      responses:
+        "201":
+          description: Telemetry recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type: integer
+                    description: Telemetry record ID
+              example:
+                id: 12345
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: Query telemetry records
+      operationId: listTelemetry
+      tags:
+        - Telemetry
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Filter by device ID
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Return records after this timestamp
+        - name: until
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Return records before this timestamp
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+          description: Maximum number of records to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of records to skip
+      responses:
+        "200":
+          description: Telemetry records
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - telemetry
+                properties:
+                  telemetry:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TelemetryRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/telemetry/latest:
+    get:
+      summary: Get the latest telemetry record for a device
+      operationId: getLatestTelemetry
+      tags:
+        - Telemetry
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Device ID
+      responses:
+        "200":
+          description: Latest telemetry record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelemetryRecord"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/ws/telemetry:
+    get:
+      summary: WebSocket stream for live telemetry
+      operationId: streamTelemetry
+      tags:
+        - Telemetry
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: query
+          schema:
+            type: string
+          description: Filter stream to a specific device
+      responses:
+        "101":
+          description: WebSocket upgrade successful — streaming telemetry events
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ────────────────────────────── Commands ──────────────────────────────
+  /api/v1/devices/{id}/commands:
+    post:
+      summary: Send a command to a device
+      operationId: sendCommand
+      tags:
+        - Commands
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Target device ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - command
+              properties:
+                command:
+                  type: string
+                  description: Command name (e.g. reboot, restart, fetch-logs)
+                params:
+                  type: object
+                  description: Command parameters
+                  example:
+                    service: mosquitto
+                    delay: 10
+              example:
+                command: reboot
+                params:
+                  delay: 5
+      responses:
+        "201":
+          description: Command queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                  - status
+                properties:
+                  id:
+                    type: string
+                    description: Command ID
+                  status:
+                    type: string
+                    enum:
+                      - pending
+                    description: Initial command status
+              example:
+                id: cmd-abc123
+                status: pending
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    get:
+      summary: List commands for a device
+      operationId: listDeviceCommands
+      tags:
+        - Commands
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Device ID
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - pending
+              - delivered
+              - completed
+              - failed
+          description: Filter by command status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: List of commands
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - commands
+                properties:
+                  commands:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Command"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/commands/{id}:
+    get:
+      summary: Get a command by ID
+      operationId: getCommand
+      tags:
+        - Commands
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Command ID
+      responses:
+        "200":
+          description: Command object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Command"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/commands/{id}/result:
+    put:
+      summary: Report command execution result (called by device)
+      operationId: reportCommandResult
+      tags:
+        - Commands
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Command ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - completed
+                    - failed
+                  description: Final command execution status
+                output:
+                  type: string
+                  description: Command output or error message
+              example:
+                status: completed
+                output: "Reboot initiated. Service restarted successfully."
+      responses:
+        "204":
+          description: Result recorded
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/ws/commands:
+    get:
+      summary: WebSocket stream for command delivery
+      operationId: streamCommands
+      tags:
+        - Commands
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - name: device_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Subscribe to commands for this device
+      responses:
+        "101":
+          description: WebSocket upgrade successful — commands pushed in realtime
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ────────────────────────────── OTA Firmware ──────────────────────────────
+  /api/v1/firmware:
+    post:
+      summary: Upload a firmware binary
+      operationId: uploadFirmware
+      tags:
+        - OTA Firmware
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - version
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Firmware binary file
+                version:
+                  type: string
+                  description: Semantic version string
+                target_devices:
+                  type: string
+                  description: Comma-separated device types or IDs this firmware targets
+              example:
+                file: firmware-v2.bin
+                version: 2.0.0
+                target_devices: gps-tracker,v1
+      responses:
+        "201":
+          description: Firmware uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Firmware"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List firmware versions
+      operationId: listFirmware
+      tags:
+        - OTA Firmware
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Firmware list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - firmware
+                properties:
+                  firmware:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Firmware"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/firmware/{id}:
+    get:
+      summary: Get firmware details
+      operationId: getFirmware
+      tags:
+        - OTA Firmware
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Firmware ID
+      responses:
+        "200":
+          description: Firmware object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Firmware"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/firmware/{id}/deploy:
+    post:
+      summary: Deploy firmware to target devices
+      operationId: deployFirmware
+      tags:
+        - OTA Firmware
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Firmware ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - device_ids
+              properties:
+                device_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: List of target device IDs
+              example:
+                device_ids:
+                  - truck-001
+                  - truck-002
+                  - truck-003
+      responses:
+        "201":
+          description: Deployment initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - deployment_id
+                  - status
+                properties:
+                  deployment_id:
+                    type: string
+                    description: Unique deployment identifier
+                  status:
+                    type: string
+                    description: Initial deployment status
+                example:
+                  deployment_id: dep-abc123
+                  status: pending
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/deployments/{id}:
+    get:
+      summary: Get deployment status
+      operationId: getDeployment
+      tags:
+        - OTA Firmware
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Deployment ID
+      responses:
+        "200":
+          description: Deployment status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deployment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/deployments/{id}/device-status:
+    put:
+      summary: Update per-device deployment status (called by device)
+      operationId: updateDeploymentDeviceStatus
+      tags:
+        - OTA Firmware
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Deployment ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - device_id
+                - status
+              properties:
+                device_id:
+                  type: string
+                  description: Reporting device ID
+                status:
+                  type: string
+                  enum:
+                    - downloading
+                    - installing
+                    - completed
+                    - failed
+                  description: Device-level deployment status
+              example:
+                device_id: truck-001
+                status: completed
+      responses:
+        "204":
+          description: Device status updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ────────────────────────────── Alerts ──────────────────────────────
+  /api/v1/alerts/rules:
+    post:
+      summary: Create an alert rule
+      operationId: createAlertRule
+      tags:
+        - Alerts
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAlertRuleRequest"
+      responses:
+        "201":
+          description: Alert rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertRule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List alert rules
+      operationId: listAlertRules
+      tags:
+        - Alerts
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Alert rules list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - rules
+                properties:
+                  rules:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AlertRule"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/alerts/rules/{id}:
+    put:
+      summary: Update an alert rule
+      operationId: updateAlertRule
+      tags:
+        - Alerts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Alert rule ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAlertRuleRequest"
+      responses:
+        "200":
+          description: Updated alert rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertRule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete an alert rule
+      operationId: deleteAlertRule
+      tags:
+        - Alerts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Alert rule ID
+      responses:
+        "204":
+          description: Alert rule deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/alerts/history:
+    get:
+      summary: Get alert history
+      operationId: getAlertHistory
+      tags:
+        - Alerts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: rule_id
+          in: query
+          schema:
+            type: string
+          description: Filter by alert rule ID
+      responses:
+        "200":
+          description: Alert history
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - history
+                properties:
+                  history:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AlertEvent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ────────────────────────────── Webhooks ──────────────────────────────
+  /api/v1/webhooks:
+    post:
+      summary: Create a webhook
+      operationId: createWebhook
+      tags:
+        - Webhooks
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWebhookRequest"
+      responses:
+        "201":
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Webhook"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List webhooks
+      operationId: listWebhooks
+      tags:
+        - Webhooks
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Webhook list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - webhooks
+                properties:
+                  webhooks:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Webhook"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/webhooks/{id}:
+    put:
+      summary: Update a webhook
+      operationId: updateWebhook
+      tags:
+        - Webhooks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Webhook ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWebhookRequest"
+      responses:
+        "200":
+          description: Updated webhook
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Webhook"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      summary: Delete a webhook
+      operationId: deleteWebhook
+      tags:
+        - Webhooks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Webhook ID
+      responses:
+        "204":
+          description: Webhook deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/webhooks/{id}/deliveries:
+    get:
+      summary: List delivery history for a webhook
+      operationId: listWebhookDeliveries
+      tags:
+        - Webhooks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Webhook ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Delivery history
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - deliveries
+                properties:
+                  deliveries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WebhookDelivery"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ────────────────────────────── Fleet / Groups ──────────────────────────────
+  /api/v1/groups:
+    post:
+      summary: Create a device group
+      operationId: createGroup
+      tags:
+        - Fleet/Groups
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Group name
+                description:
+                  type: string
+                  description: Optional description
+              example:
+                name: dhaka-fleet
+                description: All GPS trackers deployed in Dhaka
+      responses:
+        "201":
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List device groups
+      operationId: listGroups
+      tags:
+        - Fleet/Groups
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Group list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - groups
+                properties:
+                  groups:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Group"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/groups/{id}:
+    delete:
+      summary: Delete a device group
+      operationId: deleteGroup
+      tags:
+        - Fleet/Groups
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Group ID
+      responses:
+        "204":
+          description: Group deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/devices/{id}/tags:
+    post:
+      summary: Set tags on a device
+      operationId: setDeviceTags
+      tags:
+        - Fleet/Groups
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Device ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tags
+              properties:
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: List of tags to assign (replaces existing)
+              example:
+                tags:
+                  - production
+                  - dhaka
+                  - firmware-v2
+      responses:
+        "200":
+          description: Device with updated tags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/devices/{id}/group:
+    put:
+      summary: Assign device to a group
+      operationId: assignDeviceGroup
+      tags:
+        - Fleet/Groups
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Device ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - group
+              properties:
+                group:
+                  type: string
+                  description: Group name to assign (empty string to remove)
+              example:
+                group: dhaka-fleet
+      responses:
+        "200":
+          description: Device with updated group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/fleet/health:
+    get:
+      summary: Get fleet health overview
+      operationId: getFleetHealth
+      tags:
+        - Fleet/Groups
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Fleet health summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - total
+                  - online
+                  - offline
+                  - by_type
+                properties:
+                  total:
+                    type: integer
+                    description: Total registered devices
+                  online:
+                    type: integer
+                    description: Currently online devices
+                  offline:
+                    type: integer
+                    description: Currently offline devices
+                  by_type:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                    description: Device count grouped by type
+                    example:
+                      gps-tracker: 45
+                      temperature-sensor: 32
+                      relay-controller: 12
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ────────────────────────────── Audit ──────────────────────────────
+  /api/v1/audit:
+    get:
+      summary: Query audit logs
+      operationId: listAuditLogs
+      tags:
+        - Audit
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: string
+          description: Filter by action type (e.g. device.create, user.login)
+        - name: actor
+          in: query
+          schema:
+            type: string
+          description: Filter by actor ID
+        - name: target
+          in: query
+          schema:
+            type: string
+          description: Filter by target resource ID
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Return logs after this timestamp
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - logs
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditLog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ────────────────────────────── Dashboard ──────────────────────────────
+  /dashboard:
+    get:
+      summary: Serve the dashboard HTML page
+      operationId: getDashboard
+      tags:
+        - Dashboard
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Dashboard HTML
+          content:
+            text/html:
+              schema:
+                type: string
+                description: HTML content for the dashboard UI
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /:
+    get:
+      summary: Serve the root page
+      operationId: getRoot
+      tags:
+        - Dashboard
+      responses:
+        "200":
+          description: Root page HTML
+          content:
+            text/html:
+              schema:
+                type: string
+                description: HTML content for the root page
+
+  # ────────────────────────────── Tenant / Orgs ──────────────────────────────
+  /api/v1/orgs:
+    post:
+      summary: Create a new organization
+      operationId: createOrg
+      tags:
+        - Tenant/Orgs
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - slug
+              properties:
+                name:
+                  type: string
+                  description: Organization display name
+                slug:
+                  type: string
+                  description: URL-friendly organization identifier
+              example:
+                name: Acme Corp
+                slug: acme-corp
+      responses:
+        "201":
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Org"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List organizations
+      operationId: listOrgs
+      tags:
+        - Tenant/Orgs
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Organization list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - orgs
+                properties:
+                  orgs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Org"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/orgs/{id}/users:
+    post:
+      summary: Add a user to an organization
+      operationId: createOrgUser
+      tags:
+        - Tenant/Orgs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - role
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User email address
+                role:
+                  type: string
+                  enum:
+                    - admin
+                    - member
+                    - viewer
+                  description: Role within the organization
+              example:
+                email: user@acme-corp.com
+                role: member
+      responses:
+        "201":
+          description: User added to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUser"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    get:
+      summary: List users in an organization
+      operationId: listOrgUsers
+      tags:
+        - Tenant/Orgs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization ID
+      responses:
+        "200":
+          description: Organization user list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - users
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/OrgUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ────────────────────────────── MQTT ──────────────────────────────
+  /api/v1/mqtt/status:
+    get:
+      summary: Get MQTT broker status
+      operationId: getMqttStatus
+      tags:
+        - MQTT
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: MQTT broker status
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - port
+                  - connected
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - running
+                      - stopped
+                      - error
+                    description: Broker operational status
+                  port:
+                    type: integer
+                    description: MQTT broker listening port
+                  connected:
+                    type: integer
+                    description: Number of connected MQTT clients
+                example:
+                  status: running
+                  port: 1883
+                  connected: 24
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ────────────────────────────── Events (WebSocket) ──────────────────────────────
+  /api/v1/ws/events:
+    get:
+      summary: WebSocket stream for typed platform events
+      operationId: streamEvents
+      tags:
+        - Events
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: events
+          in: query
+          schema:
+            type: string
+          description: Comma-separated event types to subscribe to (e.g. device.connected, alert.triggered)
+      responses:
+        "101":
+          description: WebSocket upgrade successful — events streamed in realtime
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ────────────────────────────── Simulator ──────────────────────────────
+  /api/v1/simulator/start:
+    post:
+      summary: Start a device simulation
+      operationId: startSimulation
+      tags:
+        - Simulator
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - device_count
+                - interval
+              properties:
+                device_count:
+                  type: integer
+                  minimum: 1
+                  maximum: 10000
+                  description: Number of simulated devices
+                interval:
+                  type: string
+                  description: Telemetry reporting interval (e.g. 5s, 30s, 1m)
+              example:
+                device_count: 10
+                interval: 5s
+      responses:
+        "201":
+          description: Simulation started
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - simulation_id
+                properties:
+                  simulation_id:
+                    type: string
+                    description: Unique simulation identifier
+              example:
+                simulation_id: sim-abc123
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/simulator/stop:
+    post:
+      summary: Stop a running simulation
+      operationId: stopSimulation
+      tags:
+        - Simulator
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - simulation_id
+              properties:
+                simulation_id:
+                  type: string
+                  description: Simulation ID to stop
+              example:
+                simulation_id: sim-abc123
+      responses:
+        "200":
+          description: Simulation stopped
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - stopped
+                    description: Confirmation status
+              example:
+                status: stopped
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token for admin and user authentication.
+        Usage: `Authorization: Bearer <token>`
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        API key or device secret key authentication.
+        Usage: `Authorization: ApiKey <key>`
+
+  schemas:
+    # ────────── Auth ──────────
+    AuthTokenResponse:
+      type: object
+      required:
+        - token
+        - role
+      properties:
+        token:
+          type: string
+          description: JWT access token
+        role:
+          type: string
+          enum:
+            - admin
+            - user
+            - device
+          description: Authenticated role
+
+    # ────────── Device ──────────
+    Device:
+      type: object
+      required:
+        - id
+        - name
+        - type
+      properties:
+        id:
+          type: string
+          description: Unique device identifier
+        name:
+          type: string
+          description: Human-readable device name
+        type:
+          type: string
+          description: Device type/model identifier
+        metadata:
+          type: object
+          description: Arbitrary device metadata
+          example:
+            location: dhaka
+            firmware: v2.1.0
+        tags:
+          type: array
+          items:
+            type: string
+          description: Device tags for filtering and grouping
+        group:
+          type: string
+          description: Assigned group name
+          nullable: true
+        org_id:
+          type: string
+          description: Owning organization ID
+        status:
+          type: string
+          enum:
+            - online
+            - offline
+            - inactive
+          description: Current connection status
+        secret_key:
+          type: string
+          description: Device secret key (omitted on list endpoints)
+        last_seen:
+          type: string
+          format: date-time
+          description: Last telemetry or heartbeat timestamp
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateDeviceRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: Human-readable device name
+        type:
+          type: string
+          description: Device type/model identifier
+        metadata:
+          type: object
+          description: Arbitrary device metadata
+        tags:
+          type: array
+          items:
+            type: string
+          description: Initial tags
+        group:
+          type: string
+          description: Initial group assignment
+      example:
+        name: Truck GPS Unit 001
+        type: gps-tracker
+        metadata:
+          location: dhaka
+        tags:
+          - production
+        group: dhaka-fleet
+
+    UpdateDeviceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated device name
+        type:
+          type: string
+          description: Updated device type
+        metadata:
+          type: object
+          description: Updated metadata (replaces existing)
+        tags:
+          type: array
+          items:
+            type: string
+          description: Updated tags (replaces existing)
+        group:
+          type: string
+          description: Updated group assignment
+          nullable: true
+      example:
+        name: Truck GPS Unit 001 - Updated
+        metadata:
+          location: chittagong
+        tags:
+          - production
+          - upgraded
+
+    # ────────── Telemetry ──────────
+    TelemetryRecord:
+      type: object
+      required:
+        - id
+        - device_id
+        - metrics
+      properties:
+        id:
+          type: integer
+          description: Telemetry record ID
+        device_id:
+          type: string
+          description: Source device ID
+        timestamp:
+          type: string
+          format: date-time
+          description: Record timestamp
+        metrics:
+          type: object
+          description: Metric key-value pairs
+          example:
+            temperature: 31.2
+            humidity: 68
+            battery: 82
+        metadata:
+          type: object
+          description: Additional metadata
+          example:
+            location: dhaka
+
+    # ────────── Command ──────────
+    Command:
+      type: object
+      required:
+        - id
+        - device_id
+        - command
+        - status
+      properties:
+        id:
+          type: string
+          description: Command ID
+        device_id:
+          type: string
+          description: Target device ID
+        command:
+          type: string
+          description: Command name
+        params:
+          type: object
+          description: Command parameters
+        status:
+          type: string
+          enum:
+            - pending
+            - delivered
+            - completed
+            - failed
+          description: Command execution status
+        result:
+          type: string
+          description: Command output or error message
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ────────── Firmware ──────────
+    Firmware:
+      type: object
+      required:
+        - id
+        - version
+        - filename
+        - size
+        - checksum
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Firmware ID
+        version:
+          type: string
+          description: Semantic version
+        filename:
+          type: string
+          description: Original uploaded filename
+        size:
+          type: integer
+          description: File size in bytes
+        checksum:
+          type: string
+          description: SHA256 checksum of firmware binary
+        target_devices:
+          type: string
+          description: Target device types or IDs
+        created_at:
+          type: string
+          format: date-time
+
+    # ────────── Deployment ──────────
+    Deployment:
+      type: object
+      required:
+        - id
+        - firmware_id
+        - device_ids
+        - status
+      properties:
+        id:
+          type: string
+          description: Deployment ID
+        firmware_id:
+          type: string
+          description: Deployed firmware ID
+        device_ids:
+          type: array
+          items:
+            type: string
+          description: Target device IDs
+        status:
+          type: string
+          enum:
+            - pending
+            - in_progress
+            - completed
+            - failed
+            - rolled_back
+          description: Deployment status
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Deployment progress percentage
+        created_at:
+          type: string
+          format: date-time
+
+    # ────────── Alert ──────────
+    AlertRule:
+      type: object
+      required:
+        - id
+        - name
+        - condition
+        - channel
+        - enabled
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Rule ID
+        name:
+          type: string
+          description: Human-readable rule name
+        condition:
+          type: string
+          description: Alert condition expression (e.g. temperature > 45)
+        channel:
+          type: string
+          description: Notification channel
+          default: webhook
+        enabled:
+          type: boolean
+          description: Whether the rule is active
+        created_at:
+          type: string
+          format: date-time
+
+    CreateAlertRuleRequest:
+      type: object
+      required:
+        - name
+        - condition
+        - channel
+      properties:
+        name:
+          type: string
+          description: Rule name
+        condition:
+          type: string
+          description: Alert condition
+        channel:
+          type: string
+          description: Notification channel
+          default: webhook
+        enabled:
+          type: boolean
+          default: true
+          description: Whether the rule is active
+      example:
+        name: High Temperature Alert
+        condition: temperature > 45
+        channel: webhook
+        enabled: true
+
+    UpdateAlertRuleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated rule name
+        condition:
+          type: string
+          description: Updated condition
+        channel:
+          type: string
+          description: Updated notification channel
+        enabled:
+          type: boolean
+          description: Updated active state
+      example:
+        name: Critical Temperature Alert
+        condition: temperature > 50
+        enabled: true
+
+    AlertEvent:
+      type: object
+      required:
+        - id
+        - rule_id
+        - triggered_at
+      properties:
+        id:
+          type: string
+          description: Alert event ID
+        rule_id:
+          type: string
+          description: Triggered rule ID
+        rule_name:
+          type: string
+          description: Rule name at time of trigger
+        condition:
+          type: string
+          description: Condition that was met
+        device_id:
+          type: string
+          description: Device that triggered the alert
+        value:
+          type: number
+          description: Metric value that breached the threshold
+        triggered_at:
+          type: string
+          format: date-time
+
+    # ────────── Webhook ──────────
+    Webhook:
+      type: object
+      required:
+        - id
+        - name
+        - url
+        - events
+        - active
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Webhook ID
+        name:
+          type: string
+          description: Human-readable name
+        url:
+          type: string
+          format: uri
+          description: Target URL for webhook payloads
+        events:
+          type: array
+          items:
+            type: string
+          description: Event types that trigger this webhook
+        secret:
+          type: string
+          description: Signing secret for payload verification
+        active:
+          type: boolean
+          description: Whether the webhook is active
+        created_at:
+          type: string
+          format: date-time
+
+    CreateWebhookRequest:
+      type: object
+      required:
+        - name
+        - url
+        - events
+      properties:
+        name:
+          type: string
+          description: Webhook name
+        url:
+          type: string
+          format: uri
+          description: Target URL
+        events:
+          type: array
+          items:
+            type: string
+          description: Triggering event types
+        secret:
+          type: string
+          description: Optional signing secret
+      example:
+        name: Slack Notifications
+        url: "https://hooks.slack.com/services/xxx"
+        events:
+          - device.disconnected
+          - alert.triggered
+        secret: whsec-abc123
+
+    UpdateWebhookRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Updated name
+        url:
+          type: string
+          format: uri
+          description: Updated target URL
+        events:
+          type: array
+          items:
+            type: string
+          description: Updated event types
+        secret:
+          type: string
+          description: Updated signing secret
+        active:
+          type: boolean
+          description: Updated active state
+      example:
+        name: Slack Notifications v2
+        active: true
+
+    WebhookDelivery:
+      type: object
+      required:
+        - id
+        - webhook_id
+        - event
+        - status
+        - attempted_at
+      properties:
+        id:
+          type: string
+          description: Delivery attempt ID
+        webhook_id:
+          type: string
+          description: Webhook ID
+        event:
+          type: string
+          description: Event type that triggered delivery
+        status:
+          type: string
+          enum:
+            - success
+            - failed
+            - retrying
+          description: Delivery outcome
+        status_code:
+          type: integer
+          description: HTTP response status code from target
+        response_body:
+          type: string
+          description: Response body from target (truncated)
+        attempted_at:
+          type: string
+          format: date-time
+
+    # ────────── Group ──────────
+    Group:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          description: Group ID
+        name:
+          type: string
+          description: Group name
+        description:
+          type: string
+          description: Optional description
+        device_count:
+          type: integer
+          description: Number of devices in this group
+        created_at:
+          type: string
+          format: date-time
+
+    # ────────── Org ──────────
+    Org:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Organization ID
+        name:
+          type: string
+          description: Organization display name
+        slug:
+          type: string
+          description: URL-friendly identifier
+        created_at:
+          type: string
+          format: date-time
+
+    OrgUser:
+      type: object
+      required:
+        - id
+        - email
+        - role
+      properties:
+        id:
+          type: string
+          description: User ID
+        email:
+          type: string
+          format: email
+          description: User email address
+        role:
+          type: string
+          enum:
+            - admin
+            - member
+            - viewer
+          description: Role within the organization
+        created_at:
+          type: string
+          format: date-time
+
+    # ────────── Audit ──────────
+    AuditLog:
+      type: object
+      required:
+        - id
+        - action
+        - actor
+        - target
+        - details
+        - timestamp
+      properties:
+        id:
+          type: string
+          description: Log entry ID
+        action:
+          type: string
+          description: Action performed (e.g. device.create, user.login, firmware.deploy)
+        actor:
+          type: string
+          description: Actor who performed the action
+        target:
+          type: string
+          description: Target resource ID
+        details:
+          type: object
+          description: Additional context about the action
+        timestamp:
+          type: string
+          format: date-time
+          description: When the action occurred
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+              code:
+                type: string
+                description: Machine-readable error code
+            example:
+              error: "Invalid device_id: must be a non-empty string"
+              code: validation_error
+    Unauthorized:
+      description: Missing or invalid authentication credentials
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+            example:
+              error: Missing or invalid authentication token
+    NotFound:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+            example:
+              error: Device not found
+
+  headers:
+    X-Org-ID:
+      schema:
+        type: string
+      description: Organization ID for multi-tenancy scoping
+      example: org-abc123
+
+  parameters:
+    XOrgID:
+      name: X-Org-ID
+      in: header
+      schema:
+        type: string
+      description: Organization ID for multi-tenancy scoping
+      example: org-abc123

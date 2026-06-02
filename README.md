@@ -2,18 +2,18 @@
 
 Self-hosted IoT backend — single binary, zero external dependencies.
 
-DeviceOS manages device authentication, telemetry ingestion, real-time dashboards, OTA firmware updates, alerting, fleet management, and multi-tenancy. It runs SparkDB as a managed subprocess — no separate database setup needed.
+DeviceOS manages device authentication, telemetry ingestion, real-time dashboards, OTA firmware updates, alerting, fleet management, and multi-tenancy. Embedded SQLite storage — no separate database needed.
 
 ## Quick Start
 
 ```bash
-# 1. Place the sparkdb binary next to DeviceOS
-cp /path/to/sparkdb .
+# Build
+make build
 
-# 2. Build
-make setup
+# Init default config
+make init
 
-# 3. Start
+# Start
 make run
 # Server listening on http://0.0.0.0:8080
 ```
@@ -21,22 +21,20 @@ make run
 ## Documentation
 
 | File | Contents |
-|---|---|
-| [docs/SETUP.md](docs/SETUP.md) | Installation, config, running |
-| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | All config options (YAML + env vars) |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
-| [docs/API.md](docs/API.md) | Full API reference |
-| [docs/MODULES.md](docs/MODULES.md) | Module system guide |
-| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Development guide |
-| [config/examples/](config/examples/) | Example config files |
+|------|----------|
+| [Docs/architecture.md](Docs/architecture.md) | System architecture |
+| [Docs/configuration.md](Docs/configuration.md) | All config options (YAML + env vars) |
+| [Docs/deployment.md](Docs/deployment.md) | Deployment guide |
+| [Docs/development.md](Docs/development.md) | Module development guide |
+| [Docs/openapi.yaml](Docs/openapi.yaml) | API specification |
 
 ## Feature Overview
 
 | Feature | Description |
-|---|---|
+|---------|-------------|
 | Device Auth | Register devices, issue JWT tokens, API key authentication |
-| Telemetry | Ingest metrics via HTTP or WebSocket, query historical/latest data |
-| Real-time Dashboard | Web dashboard with live telemetry via WebSocket |
+| Telemetry | Ingest metrics via HTTP, MQTT or WebSocket, query historical/latest data |
+| Real-time Events | Typed WebSocket event stream with per-client filtering |
 | OTA Firmware | Upload firmware, deploy to device groups, track rollout status |
 | Alerting | Define rules on metric thresholds, get notified via webhooks |
 | Fleet Management | Organize devices into groups, tag devices, fleet health overview |
@@ -48,7 +46,8 @@ make run
 
 ## Technology
 
-- **Backend:** Go 1.22+ (stdlib `net/http` with method-based routing)
-- **Storage:** SparkDB (standalone Go database, managed subprocess)
+- **Backend:** Go 1.25+ (stdlib `net/http` with method-based routing)
+- **Storage:** SQLite via `modernc.org/sqlite` (pure Go, no CGO)
 - **Auth:** JWT (HMAC-SHA256) + API keys
-- **WebSocket:** `gorilla/websocket` for real-time telemetry and commands
+- **WebSocket:** `gorilla/websocket` for real-time telemetry and events
+- **MQTT:** Embedded broker via `mochi-mqtt` (pure Go, no CGO)
