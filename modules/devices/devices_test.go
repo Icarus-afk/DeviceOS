@@ -9,7 +9,7 @@ import (
 )
 
 // Devices tests verify the HTTP handler layer using mock data.
-// Full integration with SparkDB requires a running SparkDB server.
+// Full integration tests require a running SQLite database.
 
 func TestDeviceModel(t *testing.T) {
 	d := struct {

@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func newDeviceModule() *Module {
-	return &Module{db: &sparkdbtest.MockDB{}}
+	return &Module{db: &dbtest.MockDB{}}
 }
 
 func registerRoutes(t *testing.T, m *Module) *http.ServeMux {
@@ -31,9 +31,9 @@ func jsonBody(v any) *bytes.Reader {
 }
 
 func TestDevices_Register_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	mux := registerRoutes(t, m)
@@ -77,9 +77,9 @@ func TestDevices_Register_BadRequest(t *testing.T) {
 
 func TestDevices_List_Success(t *testing.T) {
 	now := time.Now()
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"dev_001", "sensor-01", "temp-sensor", `{"loc":"dhaka"}`, `["a"]`, "group-1", "online", now, now, now},
 				},
@@ -108,9 +108,9 @@ func TestDevices_List_Success(t *testing.T) {
 }
 
 func TestDevices_List_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}}
 	mux := registerRoutes(t, m)
@@ -125,8 +125,8 @@ func TestDevices_List_Empty(t *testing.T) {
 }
 
 func TestDevices_List_QueryError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -143,9 +143,9 @@ func TestDevices_List_QueryError(t *testing.T) {
 
 func TestDevices_Get_Success(t *testing.T) {
 	now := time.Now()
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{
 				Row: []interface{}{"dev_001", "sensor-01", "temp-sensor", `{}`, `[]`, "", "online", now, now, now},
 			}
 		},
@@ -169,9 +169,9 @@ func TestDevices_Get_Success(t *testing.T) {
 }
 
 func TestDevices_Get_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{Err: http.ErrNoLocation}
 		},
 	}}
 	mux := registerRoutes(t, m)
@@ -188,13 +188,13 @@ func TestDevices_Get_NotFound(t *testing.T) {
 func TestDevices_Update_Success(t *testing.T) {
 	now := time.Now()
 	callCount := 0
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			callCount++
-			return &sparkdbtest.MockResult{}, nil
+			return &dbtest.MockResult{}, nil
 		},
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{
 				Row: []interface{}{"dev_001", "updated", "sensor", `{}`, `[]`, "", "online", now, now, now},
 			}
 		},
@@ -236,12 +236,12 @@ func TestDevices_Update_BadRequest(t *testing.T) {
 }
 
 func TestDevices_Update_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{Err: http.ErrNoLocation}
 		},
 	}}
 	mux := registerRoutes(t, m)
@@ -258,9 +258,9 @@ func TestDevices_Update_NotFound(t *testing.T) {
 }
 
 func TestDevices_Delete_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	mux := registerRoutes(t, m)
@@ -275,8 +275,8 @@ func TestDevices_Delete_Success(t *testing.T) {
 }
 
 func TestDevices_Register_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}

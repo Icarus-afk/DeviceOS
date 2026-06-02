@@ -7,14 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestTenant_CreateOrg_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -39,7 +39,7 @@ func TestTenant_CreateOrg_Success(t *testing.T) {
 }
 
 func TestTenant_CreateOrg_MissingName(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestTenant_CreateOrg_MissingName(t *testing.T) {
 }
 
 func TestTenant_CreateOrg_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -71,8 +71,8 @@ func TestTenant_CreateOrg_BadJSON(t *testing.T) {
 }
 
 func TestTenant_CreateOrg_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -91,9 +91,9 @@ func TestTenant_CreateOrg_ExecError(t *testing.T) {
 }
 
 func TestTenant_ListOrgs_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"org_1", "acme", "2026-01-01T00:00:00Z"},
 				},
@@ -122,8 +122,8 @@ func TestTenant_ListOrgs_Success(t *testing.T) {
 }
 
 func TestTenant_ListOrgs_QueryError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -142,9 +142,9 @@ func TestTenant_ListOrgs_QueryError(t *testing.T) {
 }
 
 func TestTenant_ListOrgs_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -162,9 +162,9 @@ func TestTenant_ListOrgs_Empty(t *testing.T) {
 }
 
 func TestTenant_InviteUser_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -191,7 +191,7 @@ func TestTenant_InviteUser_Success(t *testing.T) {
 }
 
 func TestTenant_InviteUser_MissingEmail(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -207,7 +207,7 @@ func TestTenant_InviteUser_MissingEmail(t *testing.T) {
 }
 
 func TestTenant_InviteUser_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -223,8 +223,8 @@ func TestTenant_InviteUser_BadJSON(t *testing.T) {
 }
 
 func TestTenant_InviteUser_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -245,9 +245,9 @@ func TestTenant_InviteUser_ExecError(t *testing.T) {
 }
 
 func TestTenant_ListUsers_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"usr_1", "org_1", "user@acme.com", "admin", "2026-01-01T00:00:00Z"},
 				},
@@ -276,8 +276,8 @@ func TestTenant_ListUsers_Success(t *testing.T) {
 }
 
 func TestTenant_ListUsers_QueryError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -296,9 +296,9 @@ func TestTenant_ListUsers_QueryError(t *testing.T) {
 }
 
 func TestTenant_ListUsers_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}}
 	mux := http.NewServeMux()

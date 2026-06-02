@@ -7,14 +7,15 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 type Module struct {
-	db sparkdb.DBClient
+	db db.DBClient
 }
 
-func New(db sparkdb.DBClient) *Module {
+func New(db db.DBClient) *Module {
 	return &Module{db: db}
 }
 
@@ -60,11 +61,11 @@ type User struct {
 func (m *Module) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var org Org
 	if err := json.NewDecoder(r.Body).Decode(&org); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 	if org.Name == "" {
-		http.Error(w, `{"error":"name is required"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "name is required")
 		return
 	}
 	org.ID = fmt.Sprintf("org_%d", time.Now().UnixNano())
@@ -74,7 +75,7 @@ func (m *Module) handleCreate(w http.ResponseWriter, r *http.Request) {
 		org.ID, org.Name, org.CreatedAt)
 	if err != nil {
 		slog.Error("create org", "error", err)
-		http.Error(w, `{"error":"failed to create org"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to create org")
 		return
 	}
 	writeJSON(w, http.StatusCreated, org)
@@ -83,11 +84,11 @@ func (m *Module) handleCreate(w http.ResponseWriter, r *http.Request) {
 func (m *Module) handleList(w http.ResponseWriter, r *http.Request) {
 	rows, err := m.db.Query(`SELECT id, name, created_at FROM orgs ORDER BY name`)
 	if err != nil {
-		http.Error(w, `{"error":"query failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "query failed")
 		return
 	}
 	defer rows.Close()
-	var orgs []Org
+	orgs := make([]Org, 0)
 	for rows.Next() {
 		var o Org
 		rows.Scan(&o.ID, &o.Name, &o.CreatedAt)
@@ -100,11 +101,11 @@ func (m *Module) handleInviteUser(w http.ResponseWriter, r *http.Request) {
 	orgID := r.PathValue("id")
 	var u User
 	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 	if u.Email == "" {
-		http.Error(w, `{"error":"email is required"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "email is required")
 		return
 	}
 	if u.Role == "" {
@@ -118,7 +119,7 @@ func (m *Module) handleInviteUser(w http.ResponseWriter, r *http.Request) {
 		`INSERT INTO org_users (id, org_id, email, role, created_at) VALUES (?, ?, ?, ?, ?)`,
 		u.ID, u.OrgID, u.Email, u.Role, u.CreatedAt)
 	if err != nil {
-		http.Error(w, `{"error":"failed to invite user"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to invite user")
 		return
 	}
 	writeJSON(w, http.StatusCreated, u)
@@ -129,11 +130,11 @@ func (m *Module) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	rows, err := m.db.Query(
 		`SELECT id, org_id, email, role, created_at FROM org_users WHERE org_id = ? ORDER BY email`, orgID)
 	if err != nil {
-		http.Error(w, `{"error":"query failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "query failed")
 		return
 	}
 	defer rows.Close()
-	var users []User
+	users := make([]User, 0)
 	for rows.Next() {
 		var u User
 		rows.Scan(&u.ID, &u.OrgID, &u.Email, &u.Role, &u.CreatedAt)

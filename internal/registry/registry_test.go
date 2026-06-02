@@ -18,11 +18,11 @@ type mockModule struct {
 	routesCalled bool
 }
 
-func (m *mockModule) Name() string              { return m.name }
-func (m *mockModule) Init(any) error             { return m.initErr }
-func (m *mockModule) RegisterRoutes(any) error   { m.routesCalled = true; return m.routesErr }
-func (m *mockModule) Start() error                { m.startCalled = true; return m.startErr }
-func (m *mockModule) Stop() error                 { m.stopCalled = true; return nil }
+func (m *mockModule) Name() string             { return m.name }
+func (m *mockModule) Init(any) error           { return m.initErr }
+func (m *mockModule) RegisterRoutes(any) error { m.routesCalled = true; return m.routesErr }
+func (m *mockModule) Start() error             { m.startCalled = true; return m.startErr }
+func (m *mockModule) Stop() error              { m.stopCalled = true; return nil }
 
 func TestRegisterAndGet(t *testing.T) {
 	r := registry.New()

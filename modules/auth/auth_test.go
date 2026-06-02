@@ -4,22 +4,22 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestAuth_Init(t *testing.T) {
 	migrated := false
 	execd := false
 	m := &Module{
-		db: &sparkdbtest.MockDB{
+		db: &dbtest.MockDB{
 			OnMigrate: func(name, sql string) error {
 				migrated = true
 				return nil
 			},
-			OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+			OnExec: func(sql string, args []interface{}) (db.Result, error) {
 				execd = true
-				return &sparkdbtest.MockResult{}, nil
+				return &dbtest.MockResult{}, nil
 			},
 		},
 		jwtSecret:  "test-secret",
@@ -38,9 +38,9 @@ func TestAuth_Init(t *testing.T) {
 
 func TestAuth_Init_Defaults(t *testing.T) {
 	m := &Module{
-		db: &sparkdbtest.MockDB{
+		db: &dbtest.MockDB{
 			OnMigrate: func(name, sql string) error { return nil },
-			OnExec:    func(sql string, args []interface{}) (sparkdb.Result, error) { return &sparkdbtest.MockResult{}, nil },
+			OnExec:    func(sql string, args []interface{}) (db.Result, error) { return &dbtest.MockResult{}, nil },
 		},
 	}
 	if err := m.Init(nil); err != nil {
@@ -49,7 +49,7 @@ func TestAuth_Init_Defaults(t *testing.T) {
 }
 
 func TestAuth_New_Defaults(t *testing.T) {
-	m := New(&sparkdbtest.MockDB{}, "", "")
+	m := New(&dbtest.MockDB{}, "", "")
 	if m.jwtSecret == "" {
 		t.Fatal("expected default jwt secret")
 	}
@@ -72,7 +72,7 @@ func TestAuth_ModuleBasics(t *testing.T) {
 }
 
 func TestAuth_Init_MigrateError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
+	m := &Module{db: &dbtest.MockDB{
 		OnMigrate: func(name, sql string) error { return http.ErrAbortHandler },
 	}}
 	if err := m.Init(nil); err == nil {

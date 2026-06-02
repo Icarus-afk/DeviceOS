@@ -8,15 +8,15 @@ import (
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestAuth_Login_Success(t *testing.T) {
 	m := &Module{
-		db: &sparkdbtest.MockDB{
-			OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-				return &sparkdbtest.MockRow{
+		db: &dbtest.MockDB{
+			OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+				return &dbtest.MockRow{
 					Row: []interface{}{"admin"},
 				}
 			},
@@ -51,9 +51,9 @@ func TestAuth_Login_Success(t *testing.T) {
 
 func TestAuth_Login_InvalidKey(t *testing.T) {
 	m := &Module{
-		db: &sparkdbtest.MockDB{
-			OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-				return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+		db: &dbtest.MockDB{
+			OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+				return &dbtest.MockRow{Err: http.ErrNoLocation}
 			},
 		},
 	}
@@ -91,9 +91,9 @@ func TestAuth_Login_BadJSON(t *testing.T) {
 
 func TestAuth_DeviceToken_Success(t *testing.T) {
 	m := &Module{
-		db: &sparkdbtest.MockDB{
-			OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-				return &sparkdbtest.MockRow{
+		db: &dbtest.MockDB{
+			OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+				return &dbtest.MockRow{
 					Row: []interface{}{"correct-secret"},
 				}
 			},
@@ -128,9 +128,9 @@ func TestAuth_DeviceToken_Success(t *testing.T) {
 
 func TestAuth_DeviceToken_WrongSecret(t *testing.T) {
 	m := &Module{
-		db: &sparkdbtest.MockDB{
-			OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-				return &sparkdbtest.MockRow{
+		db: &dbtest.MockDB{
+			OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+				return &dbtest.MockRow{
 					Row: []interface{}{"correct-secret"},
 				}
 			},
@@ -155,9 +155,9 @@ func TestAuth_DeviceToken_WrongSecret(t *testing.T) {
 
 func TestAuth_DeviceToken_DeviceNotFound(t *testing.T) {
 	m := &Module{
-		db: &sparkdbtest.MockDB{
-			OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-				return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+		db: &dbtest.MockDB{
+			OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+				return &dbtest.MockRow{Err: http.ErrNoLocation}
 			},
 		},
 	}
@@ -246,9 +246,9 @@ func TestAuth_Middleware_BadToken(t *testing.T) {
 
 func TestAuth_Middleware_APIKeyValid(t *testing.T) {
 	m := &Module{
-		db: &sparkdbtest.MockDB{
-			OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-				return &sparkdbtest.MockRow{
+		db: &dbtest.MockDB{
+			OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+				return &dbtest.MockRow{
 					Row: []interface{}{"admin"},
 				}
 			},
@@ -274,9 +274,9 @@ func TestAuth_Middleware_APIKeyValid(t *testing.T) {
 
 func TestAuth_Middleware_APIKeyInvalid(t *testing.T) {
 	m := &Module{
-		db: &sparkdbtest.MockDB{
-			OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-				return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+		db: &dbtest.MockDB{
+			OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+				return &dbtest.MockRow{Err: http.ErrNoLocation}
 			},
 		},
 	}

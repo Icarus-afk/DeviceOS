@@ -7,26 +7,33 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 type Module struct {
-	db  sparkdb.DBClient
+	db db.DBClient
 }
 
-func New(db sparkdb.DBClient) *Module {
+func New(db db.DBClient) *Module {
 	return &Module{db: db}
 }
 
 func (m *Module) Name() string { return "devices" }
 
 func (m *Module) Init(cfg any) error {
-	err := m.db.Migrate("devices_v1", migration)
-	if err != nil {
-		return fmt.Errorf("devices: migrate: %w", err)
+	if err := m.db.Migrate("devices_v1", migration); err != nil {
+		return fmt.Errorf("devices: migrate v1: %w", err)
+	}
+	if err := m.db.Migrate("devices_v2_org", orgMigration); err != nil {
+		return fmt.Errorf("devices: migrate org: %w", err)
 	}
 	slog.Info("devices module initialized")
 	return nil
+}
+
+func orgID(r *http.Request) string {
+	return r.Header.Get("X-Org-ID")
 }
 
 func (m *Module) RegisterRoutes(mux any) error {
@@ -53,6 +60,7 @@ type Device struct {
 	Metadata  json.RawMessage `json:"metadata,omitempty"`
 	Tags      []string        `json:"tags,omitempty"`
 	Group     string          `json:"group,omitempty"`
+	OrgID     string          `json:"org_id,omitempty"`
 	Status    string          `json:"status"`
 	LastSeen  *time.Time      `json:"last_seen,omitempty"`
 	CreatedAt time.Time       `json:"created_at"`
@@ -75,14 +83,15 @@ type RegisterResponse struct {
 func (m *Module) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request body")
 		return
 	}
 
-	device, secret, err := m.createDevice(req)
+	oid := orgID(r)
+	device, secret, err := m.createDevice(req, oid)
 	if err != nil {
 		slog.Error("register device", "error", err)
-		http.Error(w, `{"error":"failed to register device"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to register device")
 		return
 	}
 
@@ -90,10 +99,11 @@ func (m *Module) handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Module) handleList(w http.ResponseWriter, r *http.Request) {
-	devices, err := m.listDevices()
+	oid := orgID(r)
+	devices, err := m.listDevices(oid)
 	if err != nil {
 		slog.Error("list devices", "error", err)
-		http.Error(w, `{"error":"failed to list devices"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to list devices")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"devices": devices})
@@ -101,9 +111,10 @@ func (m *Module) handleList(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleGet(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	device, err := m.getDevice(id)
+	oid := orgID(r)
+	device, err := m.getDevice(id, oid)
 	if err != nil {
-		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "device not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, device)
@@ -111,14 +122,15 @@ func (m *Module) handleGet(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	oid := orgID(r)
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request body")
 		return
 	}
-	device, err := m.updateDevice(id, req)
+	device, err := m.updateDevice(id, req, oid)
 	if err != nil {
-		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "device not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, device)
@@ -126,8 +138,9 @@ func (m *Module) handleUpdate(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := m.deleteDevice(id); err != nil {
-		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+	oid := orgID(r)
+	if err := m.deleteDevice(id, oid); err != nil {
+		httperr.NotFound(w, "device not found")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 type Module struct {
-	db         sparkdb.DBClient
+	db         db.DBClient
 	jwtSecret  string
 	adminToken string
 	mu         sync.RWMutex
@@ -24,10 +26,11 @@ type Claims struct {
 	Subject  string `json:"sub"`
 	DeviceID string `json:"device_id,omitempty"`
 	Role     string `json:"role"`
+	OrgID    string `json:"org_id,omitempty"`
 	jwt.RegisteredClaims
 }
 
-func New(db sparkdb.DBClient, jwtSecret, adminToken string) *Module {
+func New(db db.DBClient, jwtSecret, adminToken string) *Module {
 	m := &Module{db: db}
 	if jwtSecret == "" {
 		jwtSecret = "dev-change-me-in-production"
@@ -79,14 +82,14 @@ type TokenRequest struct {
 func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 
 	var role string
 	err := m.db.QueryRow(`SELECT role FROM api_keys WHERE key = ?`, req.APIKey).Scan(&role)
 	if err != nil {
-		http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+		httperr.Unauthorized(w, "invalid api key")
 		return
 	}
 
@@ -101,7 +104,7 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(m.jwtSecret))
 	if err != nil {
-		http.Error(w, `{"error":"token generation failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "token generation failed")
 		return
 	}
 
@@ -111,19 +114,19 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (m *Module) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 	var req TokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 
-	var storedKey string
-	err := m.db.QueryRow(`SELECT secret_key FROM devices WHERE id = ?`, req.DeviceID).Scan(&storedKey)
+	var storedKey, orgID string
+	err := m.db.QueryRow(`SELECT secret_key, COALESCE(org_id, '') FROM devices WHERE id = ?`, req.DeviceID).Scan(&storedKey, &orgID)
 	if err != nil {
-		http.Error(w, `{"error":"device not found"}`, http.StatusUnauthorized)
+		httperr.Unauthorized(w, "device not found")
 		return
 	}
 
 	if storedKey != req.SecretKey {
-		http.Error(w, `{"error":"invalid secret key"}`, http.StatusUnauthorized)
+		httperr.Unauthorized(w, "invalid secret key")
 		return
 	}
 
@@ -131,6 +134,7 @@ func (m *Module) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 		Subject:  req.DeviceID,
 		DeviceID: req.DeviceID,
 		Role:     "device",
+		OrgID:    orgID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -139,7 +143,7 @@ func (m *Module) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(m.jwtSecret))
 	if err != nil {
-		http.Error(w, `{"error":"token generation failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "token generation failed")
 		return
 	}
 
@@ -150,7 +154,7 @@ func (m *Module) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		if auth == "" {
-			http.Error(w, `{"error":"authorization header required"}`, http.StatusUnauthorized)
+			httperr.Unauthorized(w, "authorization header required")
 			return
 		}
 
@@ -158,11 +162,12 @@ func (m *Module) Middleware(next http.Handler) http.Handler {
 			tokenStr := strings.TrimPrefix(auth, "Bearer ")
 			claims, err := m.validateJWT(tokenStr)
 			if err != nil {
-				http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+				httperr.Unauthorized(w, "invalid token")
 				return
 			}
 			r.Header.Set("X-User-Role", claims.Role)
 			r.Header.Set("X-User-Subject", claims.Subject)
+			r.Header.Set("X-Org-ID", claims.OrgID)
 			if claims.DeviceID != "" {
 				r.Header.Set("X-Device-ID", claims.DeviceID)
 			}
@@ -175,7 +180,7 @@ func (m *Module) Middleware(next http.Handler) http.Handler {
 			var role string
 			err := m.db.QueryRow(`SELECT role FROM api_keys WHERE key = ?`, key).Scan(&role)
 			if err != nil {
-				http.Error(w, `{"error":"invalid api key"}`, http.StatusUnauthorized)
+				httperr.Unauthorized(w, "invalid api key")
 				return
 			}
 			r.Header.Set("X-User-Role", role)
@@ -183,7 +188,7 @@ func (m *Module) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		http.Error(w, `{"error":"unsupported auth scheme"}`, http.StatusUnauthorized)
+		httperr.Unauthorized(w, "unsupported auth scheme")
 	})
 }
 
