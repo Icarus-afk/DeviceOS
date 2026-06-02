@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 var upgrader = websocket.Upgrader{
@@ -19,13 +20,16 @@ var upgrader = websocket.Upgrader{
 type TelemetryCallback func(deviceID string, metrics, metadata json.RawMessage)
 
 type Module struct {
-	db       sparkdb.DBClient
-	hub      *Hub
-	hook     TelemetryCallback
+	db            db.DBClient
+	hub           *Hub
+	hooks         []TelemetryCallback
+	telemetryTTL  time.Duration
+	pruneInterval time.Duration
+	stopCh        chan struct{}
 }
 
-func (m *Module) SetTelemetryHook(fn TelemetryCallback) {
-	m.hook = fn
+func (m *Module) AddTelemetryHook(fn TelemetryCallback) {
+	m.hooks = append(m.hooks, fn)
 }
 
 type Hub struct {
@@ -61,8 +65,14 @@ func (h *Hub) Broadcast(msg []byte) {
 	}
 }
 
-func New(db sparkdb.DBClient) *Module {
-	return &Module{db: db, hub: NewHub()}
+func New(db db.DBClient, telemetryTTL, pruneInterval time.Duration) *Module {
+	return &Module{
+		db:            db,
+		hub:           NewHub(),
+		telemetryTTL:  telemetryTTL,
+		pruneInterval: pruneInterval,
+		stopCh:        make(chan struct{}),
+	}
 }
 
 func (m *Module) Name() string { return "telemetry" }
@@ -71,8 +81,15 @@ func (m *Module) Init(cfg any) error {
 	if err := m.db.Migrate("telemetry_v1", migration); err != nil {
 		return fmt.Errorf("telemetry: migrate: %w", err)
 	}
+	if err := m.db.Migrate("telemetry_v2_org", orgMigration); err != nil {
+		return fmt.Errorf("telemetry: migrate org: %w", err)
+	}
 	slog.Info("telemetry module initialized")
 	return nil
+}
+
+func orgID(r *http.Request) string {
+	return r.Header.Get("X-Org-ID")
 }
 
 func (m *Module) RegisterRoutes(mux any) error {
@@ -87,8 +104,20 @@ func (m *Module) RegisterRoutes(mux any) error {
 	return nil
 }
 
-func (m *Module) Start() error { return nil }
-func (m *Module) Stop() error  { return nil }
+func (m *Module) Start() error {
+	if m.telemetryTTL > 0 && m.pruneInterval > 0 {
+		go m.pruneLoop()
+		slog.Info("telemetry retention pruning enabled", "ttl", m.telemetryTTL, "interval", m.pruneInterval)
+	}
+	return nil
+}
+
+func (m *Module) Stop() error {
+	if m.stopCh != nil {
+		close(m.stopCh)
+	}
+	return nil
+}
 
 type Telemetry struct {
 	ID        int64           `json:"id"`
@@ -106,15 +135,47 @@ type IngestRequest struct {
 	Metadata  json.RawMessage `json:"metadata,omitempty"`
 }
 
+func (m *Module) Store(deviceID string, ts time.Time, metrics, metadata json.RawMessage, orgID string) (int64, error) {
+	if metrics == nil {
+		return 0, fmt.Errorf("metrics are required")
+	}
+	if metadata == nil {
+		metadata = json.RawMessage("{}")
+	}
+
+	id, err := m.storeTelemetry(deviceID, ts, metrics, metadata, orgID)
+	if err != nil {
+		return 0, err
+	}
+
+	evt, _ := json.Marshal(map[string]any{
+		"event": "telemetry",
+		"data": Telemetry{
+			ID:        id,
+			DeviceID:  deviceID,
+			Timestamp: ts,
+			Metrics:   metrics,
+			Metadata:  metadata,
+		},
+	})
+	m.hub.Broadcast(evt)
+
+	for _, h := range m.hooks {
+		h(deviceID, metrics, metadata)
+	}
+
+	return id, nil
+}
+
 func (m *Module) handleIngest(w http.ResponseWriter, r *http.Request) {
 	var req IngestRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request body")
 		return
 	}
 
 	if req.DeviceID == "" || req.Metrics == nil {
-		http.Error(w, `{"error":"device_id and metrics are required"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "device_id and metrics are required")
 		return
 	}
 
@@ -123,31 +184,12 @@ func (m *Module) handleIngest(w http.ResponseWriter, r *http.Request) {
 		ts = *req.Timestamp
 	}
 
-	if req.Metadata == nil {
-		req.Metadata = json.RawMessage("{}")
-	}
-
-	id, err := m.storeTelemetry(req.DeviceID, ts, req.Metrics, req.Metadata)
+	oid := orgID(r)
+	id, err := m.Store(req.DeviceID, ts, req.Metrics, req.Metadata, oid)
 	if err != nil {
 		slog.Error("store telemetry", "error", err)
-		http.Error(w, `{"error":"failed to store telemetry"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to store telemetry")
 		return
-	}
-
-	evt, _ := json.Marshal(map[string]any{
-		"event": "telemetry",
-		"data": Telemetry{
-			ID:        id,
-			DeviceID:  req.DeviceID,
-			Timestamp: ts,
-			Metrics:   req.Metrics,
-			Metadata:  req.Metadata,
-		},
-	})
-	m.hub.Broadcast(evt)
-
-	if m.hook != nil {
-		m.hook(req.DeviceID, req.Metrics, req.Metadata)
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
@@ -160,19 +202,30 @@ func (m *Module) handleQuery(w http.ResponseWriter, r *http.Request) {
 		limit = "100"
 	}
 
-	rows, err := m.db.Query(
-		`SELECT id, device_id, timestamp, metrics, metadata
-		 FROM telemetry WHERE device_id = ?
-		 ORDER BY timestamp DESC LIMIT `+limit, deviceID,
-	)
+	oid := orgID(r)
+	var rows db.RowsInterface
+	var err error
+	if oid != "" {
+		rows, err = m.db.Query(
+			`SELECT id, device_id, timestamp, metrics, metadata
+			 FROM telemetry WHERE device_id = ? AND org_id = ?
+			 ORDER BY timestamp DESC LIMIT `+limit, deviceID, oid,
+		)
+	} else {
+		rows, err = m.db.Query(
+			`SELECT id, device_id, timestamp, metrics, metadata
+			 FROM telemetry WHERE device_id = ?
+			 ORDER BY timestamp DESC LIMIT `+limit, deviceID,
+		)
+	}
 	if err != nil {
 		slog.Error("query telemetry", "error", err)
-		http.Error(w, `{"error":"query failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "query failed")
 		return
 	}
 	defer rows.Close()
 
-	var results []Telemetry
+	results := make([]Telemetry, 0)
 	for rows.Next() {
 		var t Telemetry
 		var metricsStr, metadataStr string
@@ -191,13 +244,23 @@ func (m *Module) handleLatest(w http.ResponseWriter, r *http.Request) {
 
 	var t Telemetry
 	var metricsStr, metadataStr string
-	err := m.db.QueryRow(
-		`SELECT id, device_id, timestamp, metrics, metadata
-		 FROM telemetry WHERE device_id = ?
-		 ORDER BY timestamp DESC LIMIT 1`, deviceID,
-	).Scan(&t.ID, &t.DeviceID, &t.Timestamp, &metricsStr, &metadataStr)
+	oid := orgID(r)
+	var err error
+	if oid != "" {
+		err = m.db.QueryRow(
+			`SELECT id, device_id, timestamp, metrics, metadata
+			 FROM telemetry WHERE device_id = ? AND org_id = ?
+			 ORDER BY timestamp DESC LIMIT 1`, deviceID, oid,
+		).Scan(&t.ID, &t.DeviceID, &t.Timestamp, &metricsStr, &metadataStr)
+	} else {
+		err = m.db.QueryRow(
+			`SELECT id, device_id, timestamp, metrics, metadata
+			 FROM telemetry WHERE device_id = ?
+			 ORDER BY timestamp DESC LIMIT 1`, deviceID,
+		).Scan(&t.ID, &t.DeviceID, &t.Timestamp, &metricsStr, &metadataStr)
+	}
 	if err != nil {
-		http.Error(w, `{"error":"no telemetry found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "no telemetry found")
 		return
 	}
 	t.Metrics = json.RawMessage(metricsStr)

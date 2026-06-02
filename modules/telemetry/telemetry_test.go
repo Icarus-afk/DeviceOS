@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestTelemetry_ModuleBasics(t *testing.T) {
@@ -26,7 +27,7 @@ func TestTelemetry_ModuleBasics(t *testing.T) {
 func TestTelemetry_Init(t *testing.T) {
 	var migrated bool
 	m := &Module{
-		db:  &sparkdbtest.MockDB{OnMigrate: func(name, sql string) error { migrated = true; return nil }},
+		db:  &dbtest.MockDB{OnMigrate: func(name, sql string) error { migrated = true; return nil }},
 		hub: NewHub(),
 	}
 	if err := m.Init(nil); err != nil {
@@ -39,7 +40,7 @@ func TestTelemetry_Init(t *testing.T) {
 
 func TestTelemetry_Init_Error(t *testing.T) {
 	m := &Module{
-		db:  &sparkdbtest.MockDB{OnMigrate: func(name, sql string) error { return http.ErrAbortHandler }},
+		db:  &dbtest.MockDB{OnMigrate: func(name, sql string) error { return http.ErrAbortHandler }},
 		hub: NewHub(),
 	}
 	if err := m.Init(nil); err == nil {
@@ -57,7 +58,7 @@ func TestHub_AddRemoveBroadcast(t *testing.T) {
 
 func TestTelemetry_Ingest_CustomTimestamp(t *testing.T) {
 	m := &Module{
-		db:  &sparkdbtest.MockDB{OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) { return &sparkdbtest.MockResult{}, nil }},
+		db:  &dbtest.MockDB{OnExec: func(sql string, args []interface{}) (db.Result, error) { return &dbtest.MockResult{}, nil }},
 		hub: NewHub(),
 	}
 	mux := http.NewServeMux()
@@ -74,6 +75,30 @@ func TestTelemetry_Ingest_CustomTimestamp(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+}
+
+func TestPrune(t *testing.T) {
+	m := &Module{
+		db:            &dbtest.MockDB{},
+		hub:           NewHub(),
+		telemetryTTL:  0,
+		pruneInterval: 0,
+		stopCh:        make(chan struct{}),
+	}
+	m.prune() // should not panic or error with mock
+}
+
+func TestPruneLoopStops(t *testing.T) {
+	m := &Module{
+		db:            &dbtest.MockDB{},
+		hub:           NewHub(),
+		telemetryTTL:  time.Hour,
+		pruneInterval: time.Second,
+		stopCh:        make(chan struct{}),
+	}
+	go m.pruneLoop()
+	time.Sleep(50 * time.Millisecond)
+	m.Stop()
 }
 
 var _ = http.ErrAbortHandler

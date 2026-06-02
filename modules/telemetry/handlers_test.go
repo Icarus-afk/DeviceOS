@@ -7,16 +7,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestTelemetry_Ingest_Success(t *testing.T) {
 	var execd bool
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			execd = true
-			return &sparkdbtest.MockResult{}, nil
+			return &dbtest.MockResult{}, nil
 		},
 	}, hub: NewHub()}
 	mux := http.NewServeMux()
@@ -81,12 +81,12 @@ func TestTelemetry_Ingest_BadJSON(t *testing.T) {
 
 func TestTelemetry_Ingest_WithHook(t *testing.T) {
 	var hookCalled bool
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}, hub: NewHub()}
-	m.SetTelemetryHook(func(deviceID string, metrics, metadata json.RawMessage) {
+	m.AddTelemetryHook(func(deviceID string, metrics, metadata json.RawMessage) {
 		hookCalled = true
 	})
 
@@ -110,9 +110,9 @@ func TestTelemetry_Ingest_WithHook(t *testing.T) {
 }
 
 func TestTelemetry_Ingest_HookNil(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}, hub: NewHub()}
 
@@ -133,8 +133,8 @@ func TestTelemetry_Ingest_HookNil(t *testing.T) {
 }
 
 func TestTelemetry_Ingest_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}, hub: NewHub()}
@@ -155,9 +155,9 @@ func TestTelemetry_Ingest_ExecError(t *testing.T) {
 }
 
 func TestTelemetry_Query_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{int64(1), "dev_001", "2026-01-01T00:00:00Z", `{"temp":25.5}`, `{}`},
 				},
@@ -186,8 +186,8 @@ func TestTelemetry_Query_Success(t *testing.T) {
 }
 
 func TestTelemetry_Query_Error(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}, hub: NewHub()}
@@ -206,9 +206,9 @@ func TestTelemetry_Query_Error(t *testing.T) {
 }
 
 func TestTelemetry_Query_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}, hub: NewHub()}
 	mux := http.NewServeMux()
@@ -226,9 +226,9 @@ func TestTelemetry_Query_Empty(t *testing.T) {
 }
 
 func TestTelemetry_Latest_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{
 				Row: []interface{}{int64(1), "dev_001", "2026-01-01T00:00:00Z", `{"temp":25.5}`, `{}`},
 			}
 		},
@@ -248,9 +248,9 @@ func TestTelemetry_Latest_Success(t *testing.T) {
 }
 
 func TestTelemetry_Latest_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{Err: http.ErrNoLocation}
 		},
 	}, hub: NewHub()}
 	mux := http.NewServeMux()

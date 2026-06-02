@@ -10,15 +10,15 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestTelemetry_WebSocket_ConnectAndBroadcast(t *testing.T) {
 	m := &Module{
-		db: &sparkdbtest.MockDB{
-			OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-				return &sparkdbtest.MockResult{}, nil
+		db: &dbtest.MockDB{
+			OnExec: func(sql string, args []interface{}) (db.Result, error) {
+				return &dbtest.MockResult{}, nil
 			},
 		},
 		hub: NewHub(),
