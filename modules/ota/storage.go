@@ -1,5 +1,7 @@
 package ota
 
+const orgMigration = `ALTER TABLE firmware ADD COLUMN org_id TEXT NOT NULL DEFAULT '';`
+
 const migrations = `
 CREATE TABLE IF NOT EXISTS firmware (
     id                 TEXT PRIMARY KEY,

@@ -154,9 +154,9 @@ func TestDeployRequest(t *testing.T) {
 func TestFirmwareResponse(t *testing.T) {
 	resp := `{"id":"fw_001","version":"2.0.0","target_device_type":"sensor","checksum":"abc","size":26,"changelog":"GPS fix","created_at":"2026-01-01T00:00:00Z"}`
 	var parsed struct {
-		Version         string `json:"version"`
+		Version          string `json:"version"`
 		TargetDeviceType string `json:"target_device_type"`
-		Size            int64  `json:"size"`
+		Size             int64  `json:"size"`
 	}
 	json.Unmarshal([]byte(resp), &parsed)
 	if parsed.Version != "2.0.0" {

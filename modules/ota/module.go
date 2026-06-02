@@ -13,15 +13,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 type Module struct {
-	db       sparkdb.DBClient
+	db       db.DBClient
 	storeDir string
 }
 
-func New(db sparkdb.DBClient) *Module {
+func New(db db.DBClient) *Module {
 	return &Module{db: db, storeDir: "data/firmware"}
 }
 
@@ -30,6 +31,9 @@ func (m *Module) Name() string { return "ota" }
 func (m *Module) Init(cfg any) error {
 	if err := m.db.Migrate("ota_v1", migrations); err != nil {
 		return fmt.Errorf("ota: migrate: %w", err)
+	}
+	if err := m.db.Migrate("ota_v2_org", orgMigration); err != nil {
+		return fmt.Errorf("ota: migrate org: %w", err)
 	}
 	if err := os.MkdirAll(m.storeDir, 0755); err != nil {
 		return fmt.Errorf("ota: mkdir: %w", err)
@@ -56,23 +60,23 @@ func (m *Module) Start() error { return nil }
 func (m *Module) Stop() error  { return nil }
 
 type Firmware struct {
-	ID              string    `json:"id"`
-	Version         string    `json:"version"`
-	TargetDeviceType string   `json:"target_device_type"`
-	Checksum        string    `json:"checksum"`
-	Size            int64     `json:"size"`
-	Changelog       string    `json:"changelog,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID               string    `json:"id"`
+	Version          string    `json:"version"`
+	TargetDeviceType string    `json:"target_device_type"`
+	Checksum         string    `json:"checksum"`
+	Size             int64     `json:"size"`
+	Changelog        string    `json:"changelog,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type Deployment struct {
-	ID             string         `json:"id"`
-	FirmwareID     string         `json:"firmware_id"`
-	TargetGroup    string         `json:"target_group"`
-	RolloutPercent int            `json:"rollout_percent"`
-	Status         string         `json:"status"`
-	DeviceStates   []DeviceState  `json:"device_states,omitempty"`
-	CreatedAt      time.Time      `json:"created_at"`
+	ID             string        `json:"id"`
+	FirmwareID     string        `json:"firmware_id"`
+	TargetGroup    string        `json:"target_group"`
+	RolloutPercent int           `json:"rollout_percent"`
+	Status         string        `json:"status"`
+	DeviceStates   []DeviceState `json:"device_states,omitempty"`
+	CreatedAt      time.Time     `json:"created_at"`
 }
 
 type DeviceState struct {
@@ -86,8 +90,11 @@ type firmwareUploadRequest struct {
 	Changelog        string `json:"changelog,omitempty"`
 }
 
+func orgID(r *http.Request) string { return r.Header.Get("X-Org-ID") }
+
 func (m *Module) handleUpload(w http.ResponseWriter, r *http.Request) {
 	ct := r.Header.Get("Content-Type")
+	oid := orgID(r)
 	var (
 		version    string
 		targetType string
@@ -97,13 +104,13 @@ func (m *Module) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(ct, "multipart/form-data") {
 		if err := r.ParseMultipartForm(100 << 20); err != nil {
-			http.Error(w, `{"error":"file too large"}`, http.StatusBadRequest)
+			httperr.BadRequest(w, "file too large")
 			return
 		}
 
 		file, _, err := r.FormFile("file")
 		if err != nil {
-			http.Error(w, `{"error":"file required"}`, http.StatusBadRequest)
+			httperr.BadRequest(w, "file required")
 			return
 		}
 		defer file.Close()
@@ -114,13 +121,13 @@ func (m *Module) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 		data, err = io.ReadAll(file)
 		if err != nil {
-			http.Error(w, `{"error":"failed to read file"}`, http.StatusInternalServerError)
+			httperr.Internal(w, "failed to read file")
 			return
 		}
 	} else {
 		var req firmwareUploadRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+			httperr.BadRequest(w, "invalid request body")
 			return
 		}
 		version = req.Version
@@ -129,7 +136,7 @@ func (m *Module) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if version == "" || targetType == "" {
-		http.Error(w, `{"error":"version and target_device_type required"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "version and target_device_type required")
 		return
 	}
 
@@ -143,7 +150,7 @@ func (m *Module) handleUpload(w http.ResponseWriter, r *http.Request) {
 
 		dst := filepath.Join(m.storeDir, id)
 		if err := os.WriteFile(dst, data, 0644); err != nil {
-			http.Error(w, `{"error":"failed to store file"}`, http.StatusInternalServerError)
+			httperr.Internal(w, "failed to store file")
 			return
 		}
 	} else {
@@ -162,15 +169,15 @@ func (m *Module) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err := m.db.Exec(
-		`INSERT INTO firmware (id, version, target_device_type, checksum, size, changelog, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		fw.ID, fw.Version, fw.TargetDeviceType, fw.Checksum, fw.Size, fw.Changelog, fw.CreatedAt,
+		`INSERT INTO firmware (id, version, target_device_type, checksum, size, changelog, created_at, org_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		fw.ID, fw.Version, fw.TargetDeviceType, fw.Checksum, fw.Size, fw.Changelog, fw.CreatedAt, oid,
 	)
 	if err != nil {
 		if len(data) > 0 {
 			os.Remove(filepath.Join(m.storeDir, id))
 		}
-		http.Error(w, `{"error":"failed to register firmware"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to register firmware")
 		return
 	}
 
@@ -178,18 +185,19 @@ func (m *Module) handleUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Module) handleList(w http.ResponseWriter, r *http.Request) {
+	oid := orgID(r)
 	rows, err := m.db.Query(
 		`SELECT id, version, target_device_type, checksum, size, changelog, created_at
-		 FROM firmware ORDER BY created_at DESC`,
+		 FROM firmware WHERE org_id = ? ORDER BY created_at DESC`, oid,
 	)
 	if err != nil {
 		slog.Error("list firmware", "error", err)
-		http.Error(w, `{"error":"query failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "query failed")
 		return
 	}
 	defer rows.Close()
 
-	var list []Firmware
+	list := make([]Firmware, 0)
 	for rows.Next() {
 		var f Firmware
 		rows.Scan(&f.ID, &f.Version, &f.TargetDeviceType, &f.Checksum, &f.Size, &f.Changelog, &f.CreatedAt)
@@ -200,13 +208,14 @@ func (m *Module) handleList(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleGet(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	oid := orgID(r)
 	var f Firmware
 	err := m.db.QueryRow(
 		`SELECT id, version, target_device_type, checksum, size, changelog, created_at
-		 FROM firmware WHERE id = ?`, id,
+		 FROM firmware WHERE id = ? AND org_id = ?`, id, oid,
 	).Scan(&f.ID, &f.Version, &f.TargetDeviceType, &f.Checksum, &f.Size, &f.Changelog, &f.CreatedAt)
 	if err != nil {
-		http.Error(w, `{"error":"firmware not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "firmware not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, f)
@@ -222,7 +231,7 @@ func (m *Module) handleDeploy(w http.ResponseWriter, r *http.Request) {
 
 	var req DeployRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 	if req.RolloutPercent <= 0 || req.RolloutPercent > 100 {
@@ -236,7 +245,7 @@ func (m *Module) handleDeploy(w http.ResponseWriter, r *http.Request) {
 		deployID, firmwareID, req.TargetGroup, req.RolloutPercent, time.Now(),
 	)
 	if err != nil {
-		http.Error(w, `{"error":"failed to create deployment"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to create deployment")
 		return
 	}
 
@@ -254,7 +263,7 @@ func (m *Module) handleDeploymentStatus(w http.ResponseWriter, r *http.Request) 
 		 FROM deployments WHERE id = ?`, id,
 	).Scan(&d.ID, &d.FirmwareID, &d.TargetGroup, &d.RolloutPercent, &d.Status, &d.CreatedAt)
 	if err != nil {
-		http.Error(w, `{"error":"deployment not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "deployment not found")
 		return
 	}
 
@@ -282,7 +291,7 @@ func (m *Module) handleDeviceStatus(w http.ResponseWriter, r *http.Request) {
 	deployID := r.PathValue("id")
 	var req DeviceStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 
@@ -293,7 +302,7 @@ func (m *Module) handleDeviceStatus(w http.ResponseWriter, r *http.Request) {
 		deployID, req.DeviceID, req.Status,
 	)
 	if err != nil {
-		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "update failed")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"status": "recorded"})

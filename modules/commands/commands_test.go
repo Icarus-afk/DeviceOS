@@ -6,12 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestCommands_ModuleBasics(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	if m.Name() != "commands" {
 		t.Fatalf("expected commands, got %s", m.Name())
 	}
@@ -25,7 +25,7 @@ func TestCommands_ModuleBasics(t *testing.T) {
 
 func TestCommands_Init(t *testing.T) {
 	var migrated bool
-	m := &Module{db: &sparkdbtest.MockDB{
+	m := &Module{db: &dbtest.MockDB{
 		OnMigrate: func(name, sql string) error {
 			migrated = true
 			return nil
@@ -40,7 +40,7 @@ func TestCommands_Init(t *testing.T) {
 }
 
 func TestCommands_Init_Error(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
+	m := &Module{db: &dbtest.MockDB{
 		OnMigrate: func(name, sql string) error { return http.ErrAbortHandler },
 	}}
 	if err := m.Init(nil); err == nil {
@@ -49,9 +49,9 @@ func TestCommands_Init_Error(t *testing.T) {
 }
 
 func TestCommands_Send_WithPayload(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -71,9 +71,9 @@ func TestCommands_Send_WithPayload(t *testing.T) {
 }
 
 func TestCommands_Result_DefaultStatus(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()

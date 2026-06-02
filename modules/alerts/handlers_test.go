@@ -7,14 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestAlerts_CreateRule_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -41,7 +41,7 @@ func TestAlerts_CreateRule_Success(t *testing.T) {
 }
 
 func TestAlerts_CreateRule_MissingFields(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ func TestAlerts_CreateRule_MissingFields(t *testing.T) {
 }
 
 func TestAlerts_CreateRule_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -85,8 +85,8 @@ func TestAlerts_CreateRule_BadJSON(t *testing.T) {
 }
 
 func TestAlerts_CreateRule_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -107,9 +107,9 @@ func TestAlerts_CreateRule_ExecError(t *testing.T) {
 }
 
 func TestAlerts_ListRules_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"rule_1", "high-temp", "temperature", ">", 30.0, "5m", "log", "", true, "2026-01-01T00:00:00Z"},
 				},
@@ -138,8 +138,8 @@ func TestAlerts_ListRules_Success(t *testing.T) {
 }
 
 func TestAlerts_ListRules_QueryError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -158,9 +158,9 @@ func TestAlerts_ListRules_QueryError(t *testing.T) {
 }
 
 func TestAlerts_ListRules_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -178,9 +178,9 @@ func TestAlerts_ListRules_Empty(t *testing.T) {
 }
 
 func TestAlerts_UpdateRule_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -200,9 +200,9 @@ func TestAlerts_UpdateRule_Success(t *testing.T) {
 }
 
 func TestAlerts_UpdateRule_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 0}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 0}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -222,7 +222,7 @@ func TestAlerts_UpdateRule_NotFound(t *testing.T) {
 }
 
 func TestAlerts_UpdateRule_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -238,8 +238,8 @@ func TestAlerts_UpdateRule_BadJSON(t *testing.T) {
 }
 
 func TestAlerts_UpdateRule_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -260,9 +260,9 @@ func TestAlerts_UpdateRule_ExecError(t *testing.T) {
 }
 
 func TestAlerts_DeleteRule_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -280,9 +280,9 @@ func TestAlerts_DeleteRule_Success(t *testing.T) {
 }
 
 func TestAlerts_DeleteRule_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 0}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 0}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -300,8 +300,8 @@ func TestAlerts_DeleteRule_NotFound(t *testing.T) {
 }
 
 func TestAlerts_DeleteRule_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -320,9 +320,9 @@ func TestAlerts_DeleteRule_ExecError(t *testing.T) {
 }
 
 func TestAlerts_History_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"evt_1", "rule_1", "high-temp", "dev_001", "temperature", 30.5, "threshold exceeded", "critical", "2026-01-01T00:00:00Z"},
 				},
@@ -351,8 +351,8 @@ func TestAlerts_History_Success(t *testing.T) {
 }
 
 func TestAlerts_History_QueryError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -371,6 +371,6 @@ func TestAlerts_History_QueryError(t *testing.T) {
 }
 
 func TestAlerts_OnTelemetry(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	m.OnTelemetry("dev_001", json.RawMessage(`{"temp":30}`), json.RawMessage(`{}`))
 }

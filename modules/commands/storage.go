@@ -23,6 +23,8 @@ CREATE INDEX IF NOT EXISTS idx_commands_device
     ON commands(device_id, created_at DESC);
 `
 
+const orgMigration = `ALTER TABLE commands ADD COLUMN org_id TEXT NOT NULL DEFAULT '';`
+
 func generateCmdID() string {
 	b := make([]byte, 8)
 	rand.Read(b)

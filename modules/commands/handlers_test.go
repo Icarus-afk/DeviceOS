@@ -7,14 +7,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestCommands_Send_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -44,7 +44,7 @@ func TestCommands_Send_Success(t *testing.T) {
 }
 
 func TestCommands_Send_MissingCommand(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func TestCommands_Send_MissingCommand(t *testing.T) {
 }
 
 func TestCommands_Send_BadJSON(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{}}
+	m := &Module{db: &dbtest.MockDB{}}
 	mux := http.NewServeMux()
 	if err := m.RegisterRoutes(mux); err != nil {
 		t.Fatal(err)
@@ -76,8 +76,8 @@ func TestCommands_Send_BadJSON(t *testing.T) {
 }
 
 func TestCommands_Send_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -98,9 +98,9 @@ func TestCommands_Send_ExecError(t *testing.T) {
 }
 
 func TestCommands_List_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{
 				Rows: [][]interface{}{
 					{"cmd_1", "dev_001", "reboot", `{}`, "pending", "", "2026-01-01T00:00:00Z", nil},
 				},
@@ -129,8 +129,8 @@ func TestCommands_List_Success(t *testing.T) {
 }
 
 func TestCommands_List_QueryError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}
@@ -149,9 +149,9 @@ func TestCommands_List_QueryError(t *testing.T) {
 }
 
 func TestCommands_List_Empty(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQuery: func(sql string, args []interface{}) (sparkdb.RowsInterface, error) {
-			return &sparkdbtest.MockRows{}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnQuery: func(sql string, args []interface{}) (db.RowsInterface, error) {
+			return &dbtest.MockRows{}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -169,9 +169,9 @@ func TestCommands_List_Empty(t *testing.T) {
 }
 
 func TestCommands_Get_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{
 				Row: []interface{}{"cmd_1", "dev_001", "reboot", `{}`, "pending", "", "2026-01-01T00:00:00Z", nil},
 			}
 		},
@@ -198,9 +198,9 @@ func TestCommands_Get_Success(t *testing.T) {
 }
 
 func TestCommands_Get_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{Err: http.ErrNoLocation}
 		},
 	}}
 	mux := http.NewServeMux()
@@ -218,9 +218,9 @@ func TestCommands_Get_NotFound(t *testing.T) {
 }
 
 func TestCommands_Result_Success(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 1}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 1}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -240,9 +240,9 @@ func TestCommands_Result_Success(t *testing.T) {
 }
 
 func TestCommands_Result_NotFound(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{Affected: 0}, nil
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{Affected: 0}, nil
 		},
 	}}
 	mux := http.NewServeMux()
@@ -262,8 +262,8 @@ func TestCommands_Result_NotFound(t *testing.T) {
 }
 
 func TestCommands_Result_ExecError(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
+	m := &Module{db: &dbtest.MockDB{
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
 			return nil, http.ErrAbortHandler
 		},
 	}}

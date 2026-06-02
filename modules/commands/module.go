@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 var upgrader = websocket.Upgrader{
@@ -18,11 +19,11 @@ var upgrader = websocket.Upgrader{
 }
 
 type Module struct {
-	db        sparkdb.DBClient
-	pending   sync.Map
+	db      db.DBClient
+	pending sync.Map
 }
 
-func New(db sparkdb.DBClient) *Module {
+func New(db db.DBClient) *Module {
 	return &Module{db: db}
 }
 
@@ -31,6 +32,9 @@ func (m *Module) Name() string { return "commands" }
 func (m *Module) Init(cfg any) error {
 	if err := m.db.Migrate("commands_v1", migration); err != nil {
 		return fmt.Errorf("commands: migrate: %w", err)
+	}
+	if err := m.db.Migrate("commands_v2_org", orgMigration); err != nil {
+		return fmt.Errorf("commands: migrate org: %w", err)
 	}
 	slog.Info("commands module initialized")
 	return nil
@@ -53,14 +57,14 @@ func (m *Module) Start() error { return nil }
 func (m *Module) Stop() error  { return nil }
 
 type Command struct {
-	ID         string          `json:"id"`
-	DeviceID   string          `json:"device_id"`
-	Command    string          `json:"command"`
-	Payload    json.RawMessage `json:"payload,omitempty"`
-	Status     string          `json:"status"`
-	Result     json.RawMessage `json:"result,omitempty"`
-	CreatedAt  time.Time       `json:"created_at"`
-	CompletedAt *time.Time     `json:"completed_at,omitempty"`
+	ID          string          `json:"id"`
+	DeviceID    string          `json:"device_id"`
+	Command     string          `json:"command"`
+	Payload     json.RawMessage `json:"payload,omitempty"`
+	Status      string          `json:"status"`
+	Result      json.RawMessage `json:"result,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	CompletedAt *time.Time      `json:"completed_at,omitempty"`
 }
 
 type SendRequest struct {
@@ -68,16 +72,19 @@ type SendRequest struct {
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
+func orgID(r *http.Request) string { return r.Header.Get("X-Org-ID") }
+
 func (m *Module) handleSend(w http.ResponseWriter, r *http.Request) {
 	deviceID := r.PathValue("id")
+	oid := orgID(r)
 
 	var req SendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 	if req.Command == "" {
-		http.Error(w, `{"error":"command is required"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "command is required")
 		return
 	}
 
@@ -96,13 +103,13 @@ func (m *Module) handleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err := m.db.Exec(
-		`INSERT INTO commands (id, device_id, command, payload, status, created_at)
-		 VALUES (?, ?, ?, ?, 'pending', ?)`,
-		cmd.ID, cmd.DeviceID, cmd.Command, string(cmd.Payload), cmd.CreatedAt,
+		`INSERT INTO commands (id, device_id, command, payload, status, created_at, org_id)
+		 VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
+		cmd.ID, cmd.DeviceID, cmd.Command, string(cmd.Payload), cmd.CreatedAt, oid,
 	)
 	if err != nil {
 		slog.Error("store command", "error", err)
-		http.Error(w, `{"error":"failed to create command"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "failed to create command")
 		return
 	}
 
@@ -113,18 +120,19 @@ func (m *Module) handleSend(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleList(w http.ResponseWriter, r *http.Request) {
 	deviceID := r.PathValue("id")
+	oid := orgID(r)
 
 	rows, err := m.db.Query(
 		`SELECT id, device_id, command, payload, status, result, created_at, completed_at
-		 FROM commands WHERE device_id = ? ORDER BY created_at DESC LIMIT 50`, deviceID,
+		 FROM commands WHERE device_id = ? AND org_id = ? ORDER BY created_at DESC LIMIT 50`, deviceID, oid,
 	)
 	if err != nil {
-		http.Error(w, `{"error":"query failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "query failed")
 		return
 	}
 	defer rows.Close()
 
-	var commands []Command
+	commands := make([]Command, 0)
 	for rows.Next() {
 		var c Command
 		var payloadStr, resultStr sql.NullString
@@ -144,14 +152,15 @@ func (m *Module) handleList(w http.ResponseWriter, r *http.Request) {
 
 func (m *Module) handleGet(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	oid := orgID(r)
 	var c Command
 	var payloadStr, resultStr sql.NullString
 	err := m.db.QueryRow(
 		`SELECT id, device_id, command, payload, status, result, created_at, completed_at
-		 FROM commands WHERE id = ?`, id,
+		 FROM commands WHERE id = ? AND org_id = ?`, id, oid,
 	).Scan(&c.ID, &c.DeviceID, &c.Command, &payloadStr, &c.Status, &resultStr, &c.CreatedAt, &c.CompletedAt)
 	if err != nil {
-		http.Error(w, `{"error":"command not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "command not found")
 		return
 	}
 	if payloadStr.Valid {
@@ -170,9 +179,10 @@ type ResultRequest struct {
 
 func (m *Module) handleResult(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	oid := orgID(r)
 	var req ResultRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		httperr.BadRequest(w, "invalid request")
 		return
 	}
 	if req.Status == "" {
@@ -181,15 +191,15 @@ func (m *Module) handleResult(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 	res, err := m.db.Exec(
-		`UPDATE commands SET status=?, result=?, completed_at=? WHERE id=?`,
-		req.Status, string(req.Result), now, id,
+		`UPDATE commands SET status=?, result=?, completed_at=? WHERE id=? AND org_id=?`,
+		req.Status, string(req.Result), now, id, oid,
 	)
 	if err != nil {
-		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
+		httperr.Internal(w, "update failed")
 		return
 	}
 	if affected, _ := res.RowsAffected(); affected == 0 {
-		http.Error(w, `{"error":"command not found"}`, http.StatusNotFound)
+		httperr.NotFound(w, "command not found")
 		return
 	}
 	m.pending.Delete(id)
@@ -205,7 +215,8 @@ func (m *Module) handleWS(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	deviceID := r.URL.Query().Get("device_id")
-	slog.Info("cmd ws connected", "device_id", deviceID)
+	oid := orgID(r)
+	slog.Info("cmd ws connected", "device_id", deviceID, "org_id", oid)
 
 	done := make(chan struct{})
 	go func() {
@@ -241,8 +252,8 @@ func (m *Module) handleWS(w http.ResponseWriter, r *http.Request) {
 				var pStr, rStr sql.NullString
 				err := m.db.QueryRow(
 					`SELECT id, device_id, command, payload, status, result, created_at, completed_at
-					 FROM commands WHERE device_id = ? AND status = 'pending'
-					 ORDER BY created_at ASC LIMIT 1`, deviceID,
+					 FROM commands WHERE device_id = ? AND status = 'pending' AND org_id = ?
+					 ORDER BY created_at ASC LIMIT 1`, deviceID, oid,
 				).Scan(&cmd.ID, &cmd.DeviceID, &cmd.Command, &pStr, &cmd.Status, &rStr, &cmd.CreatedAt, &cmd.CompletedAt)
 				if err == nil {
 					if pStr.Valid {

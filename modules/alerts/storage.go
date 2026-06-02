@@ -30,3 +30,8 @@ CREATE TABLE IF NOT EXISTS alert_events (
 CREATE INDEX IF NOT EXISTS idx_alert_events_created
     ON alert_events(created_at DESC);
 `
+
+const orgMigration = `
+ALTER TABLE alert_rules ADD COLUMN org_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE alert_events ADD COLUMN org_id TEXT NOT NULL DEFAULT '';
+`

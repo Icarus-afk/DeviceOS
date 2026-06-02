@@ -9,14 +9,14 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/lohtbrok/deviceos/internal/sparkdb"
-	"github.com/lohtbrok/deviceos/internal/sparkdbtest"
+	"github.com/lohtbrok/deviceos/internal/db"
+	"github.com/lohtbrok/deviceos/internal/dbtest"
 )
 
 func TestCommands_WebSocket_ConnectAndReceive(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{Err: http.ErrNoLocation}
 		},
 	}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,9 +39,9 @@ func TestCommands_WebSocket_ConnectAndReceive(t *testing.T) {
 }
 
 func TestCommands_WebSocket_NoDeviceID(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{Err: http.ErrNoLocation}
 		},
 	}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -64,12 +64,12 @@ func TestCommands_WebSocket_NoDeviceID(t *testing.T) {
 }
 
 func TestCommands_WebSocket_SendPendingViaSyncMap(t *testing.T) {
-	m := &Module{db: &sparkdbtest.MockDB{
-		OnQueryRow: func(sql string, args []interface{}) sparkdb.RowInterface {
-			return &sparkdbtest.MockRow{Err: http.ErrNoLocation}
+	m := &Module{db: &dbtest.MockDB{
+		OnQueryRow: func(sql string, args []interface{}) db.RowInterface {
+			return &dbtest.MockRow{Err: http.ErrNoLocation}
 		},
-		OnExec: func(sql string, args []interface{}) (sparkdb.Result, error) {
-			return &sparkdbtest.MockResult{}, nil
+		OnExec: func(sql string, args []interface{}) (db.Result, error) {
+			return &dbtest.MockResult{}, nil
 		},
 	}}
 	// Simulate a pending command via the handler
