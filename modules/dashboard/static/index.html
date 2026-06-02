@@ -6,132 +6,224 @@
 <title>DeviceOS</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0b1120;--surface:#151e30;--surface2:#1c283f;--border:#253049;--text:#e6edf5;--muted:#7c8fb0;--accent:#3b82f6;--accent2:#60a5fa;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--radius:12px;--shadow:0 1px 3px rgba(0,0,0,.3)}
+:root{--bg:#0b1120;--surface:#151e30;--surface2:#1c283f;--border:#253049;--text:#e6edf5;--muted:#7c8fb0;--accent:#3b82f6;--accent2:#60a5fa;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--radius:12px}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+input,select,textarea,button{font-family:inherit}
+.login-overlay{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center}
+.login-overlay.hidden{display:none}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:40px;width:380px;max-width:90vw}
+.login-box h1{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px}
+.login-box h1 span{color:var(--accent)}
+.login-box .sub{text-align:center;color:var(--muted);font-size:13px;margin-bottom:24px}
+.login-box label{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.login-box input{width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none}
+.login-box input:focus{border-color:var(--accent)}
+.login-box .hint{color:var(--muted);font-size:11px;margin-top:6px}
+.login-box .hint code{background:var(--bg);padding:1px 5px;border-radius:3px;font-size:10px}
+.login-box .error{color:var(--red);font-size:12px;margin-top:8px;display:none}
+.login-box button{width:100%;margin-top:16px;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+.login-box button:hover{opacity:.9}
+.login-box button:disabled{opacity:.5;cursor:default}
 .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
-.topbar h1{font-size:18px;font-weight:700;color:#fff;letter-spacing:-.3px}
+.topbar h1{font-size:18px;font-weight:700;color:#fff;letter-spacing:-.3px;cursor:pointer}
 .topbar h1 span{color:var(--accent)}
-.topbar-right{display:flex;align-items:center;gap:16px}
+.topbar-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.topbar-right .user{font-size:12px;color:var(--muted)}
+.topbar-right .btn{font-size:11px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+.topbar-right .btn:hover{border-color:var(--accent);color:var(--accent)}
 .ws-badge{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500}
 .ws-badge.ok{background:rgba(34,197,94,.15);color:var(--green)}
 .ws-badge.off{background:rgba(239,68,68,.15);color:var(--red)}
-.version-badge{font-size:11px;color:var(--muted)}
-nav{display:flex;gap:0;background:var(--surface);padding:0 24px;border-bottom:1px solid var(--border)}
-nav a{padding:12px 20px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;text-decoration:none}
+nav{display:flex;gap:0;background:var(--surface);padding:0 12px;border-bottom:1px solid var(--border);overflow-x:auto}
+nav a{padding:12px 14px;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
 nav a:hover{color:var(--text)}
 nav a.active{color:var(--accent);border-bottom-color:var(--accent)}
-.container{max-width:1400px;margin:0 auto;padding:24px}
-.section{display:none}
-.section.active{display:block}
-.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:border-color .2s}
+.container{max-width:1400px;margin:0 auto;padding:20px}
+.section{display:none}.section.active{display:block}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
 .stat-card:hover{border-color:var(--accent)}
-.stat-card .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
-.stat-card .value{font-size:30px;font-weight:700;line-height:1.2}
-.stat-card .value.blue{color:var(--accent)}
-.stat-card .value.green{color:var(--green)}
-.stat-card .value.red{color:var(--red)}
-.stat-card .value.amber{color:var(--amber)}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
-.card h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px;font-weight:600}
+.stat-card .label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.stat-card .value{font-size:26px;font-weight:700;line-height:1.2}
+.stat-card .value.blue{color:var(--accent)}.stat-card .value.green{color:var(--green)}.stat-card .value.red{color:var(--red)}.stat-card .value.amber{color:var(--amber)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.card h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px;font-weight:600}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.card-header h3{margin-bottom:0}
 .chart-wrap{width:100%;overflow-x:auto}
-.chart-wrap svg{display:block;width:100%;height:auto;min-width:300px;max-height:140px}
-.device-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
-.device-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;transition:all .15s}
-.device-card:hover{border-color:var(--accent);transform:translateY(-1px)}
-.device-card .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
-.device-card .name{font-size:14px;font-weight:600;color:#fff}
-.device-card .type{font-size:11px;color:var(--muted);margin-top:1px}
-.device-card .status-badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:500}
-.device-card .status-badge.online{background:rgba(34,197,94,.15);color:var(--green)}
-.device-card .status-badge.offline{background:rgba(239,68,68,.15);color:var(--red)}
-.device-card .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.chart-wrap svg{display:block;width:100%;height:auto;min-width:300px;max-height:120px}
+/* ── Toolbar ── */
+.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.toolbar input,.toolbar select{padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;outline:none}
+.toolbar input:focus,.toolbar select:focus{border-color:var(--accent)}
+.toolbar input{flex:1;min-width:120px}
+.toolbar .btn{font-size:11px;padding:7px 14px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;font-weight:500}
+.toolbar .btn:hover{opacity:.9}
+.toolbar .btn.secondary{background:transparent;border-color:var(--border);color:var(--text)}
+.toolbar .btn.secondary:hover{border-color:var(--accent);color:var(--accent)}
+.toolbar .btn.danger{background:var(--red);border-color:var(--red)}
+/* ── Tables ── */
+.data-table{width:100%;border-collapse:collapse;font-size:12px}
+.data-table th{padding:8px 10px;text-align:left;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border);font-size:10px}
+.data-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text)}
+.data-table tr:hover td{background:var(--surface2)}
+.data-table .actions{display:flex;gap:4px}
+.data-table .actions button{padding:3px 8px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:10px}
+.data-table .actions button:hover{border-color:var(--accent);color:var(--accent)}
+.data-table .actions button.danger:hover{border-color:var(--red);color:var(--red)}
+/* ── Status badges ── */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500}
+.badge.green{background:rgba(34,197,94,.15);color:var(--green)}
+.badge.red{background:rgba(239,68,68,.15);color:var(--red)}
+.badge.amber{background:rgba(245,158,11,.15);color:var(--amber)}
+.badge.blue{background:rgba(59,130,246,.15);color:var(--accent)}
+/* ── Modal ── */
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:520px;width:90%;max-height:85vh;overflow-y:auto}
+.modal h2{font-size:16px;margin-bottom:16px}
+.modal .close{float:right;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer}
+.modal .close:hover{color:var(--text)}
+.modal label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;margin-top:12px}
+.modal label:first-child{margin-top:0}
+.modal input,.modal select,.modal textarea{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;outline:none}
+.modal input:focus,.modal select:focus,.modal textarea:focus{border-color:var(--accent)}
+.modal textarea{min-height:60px;resize:vertical;font-family:'SF Mono','Fira Code',monospace;font-size:11px}
+.modal .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal .btn-row{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+.modal .btn-row button{padding:8px 16px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer}
+.modal .btn-row .primary{background:var(--accent);border:1px solid var(--accent);color:#fff}
+.modal .btn-row .primary:hover{opacity:.9}
+.modal .btn-row .cancel{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.modal .btn-row .cancel:hover{color:var(--text)}
+.modal .m-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+.modal .m-item{background:var(--bg);border-radius:8px;padding:12px;text-align:center}
+.modal .m-item .mv{font-size:20px;font-weight:600;color:var(--accent)}
+.modal .m-item .ml{font-size:10px;color:var(--muted);text-transform:uppercase;margin-top:2px}
+/* ── Device cards ── */
+.device-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.device-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;cursor:pointer}
+.device-card:hover{border-color:var(--accent)}
+.device-card .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.device-card .name{font-size:13px;font-weight:600;color:#fff}
+.device-card .type{font-size:10px;color:var(--muted);margin-top:1px}
+.device-card .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
 .device-card .metric{text-align:center}
-.device-card .metric .val{font-size:16px;font-weight:600;color:var(--accent)}
-.device-card .metric .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-top:1px}
-.device-card .last-seen{font-size:10px;color:var(--muted);margin-top:8px}
-.distro-list{display:flex;flex-direction:column;gap:8px}
-.distro-row{display:flex;align-items:center;gap:12px}
-.distro-row .label{width:120px;font-size:13px;color:var(--text);flex-shrink:0}
-.distro-row .bar-wrap{flex:1;height:18px;background:var(--bg);border-radius:9px;overflow:hidden}
-.distro-row .bar{height:100%;border-radius:9px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s}
-.distro-row .count{font-size:13px;color:var(--muted);min-width:30px;text-align:right}
-.alert-timeline{display:flex;flex-direction:column}
-.alert-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);align-items:flex-start}
-.alert-item:last-child{border-bottom:none}
-.alert-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.device-card .metric .val{font-size:14px;font-weight:600;color:var(--accent)}
+.device-card .metric .lbl{font-size:9px;color:var(--muted);text-transform:uppercase;margin-top:1px}
+.device-card .last-seen{font-size:10px;color:var(--muted);margin-top:6px}
+/* ── Misc ── */
+.severity-pills{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.severity-pills .pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted)}
+.severity-pills .pill:hover{border-color:var(--accent)}
+.severity-pills .pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.stream-entry{font-family:'SF Mono','Fira Code',monospace;font-size:11px;padding:5px 8px;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center}
+.stream-entry .ts{color:var(--muted);flex-shrink:0}
+.stream-entry .did{color:var(--accent);flex-shrink:0}
+.stream-entry .vals span{margin-right:6px}
+.stream-entry .vals .n{color:var(--green)}
+.alert-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.alert-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px}
 .alert-icon.critical{background:rgba(239,68,68,.15);color:var(--red)}
 .alert-icon.warning{background:rgba(245,158,11,.15);color:var(--amber)}
 .alert-icon.info{background:rgba(59,130,246,.15);color:var(--accent)}
 .alert-body{flex:1;min-width:0}
-.alert-body .msg{font-size:13px;color:var(--text)}
-.alert-body .meta{font-size:11px;color:var(--muted);margin-top:2px}
-.stream-entry{font-family:'SF Mono','Fira Code','Cascadia Code',monospace;font-size:12px;padding:6px 10px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center}
-.stream-entry:first-child{border-top:1px solid var(--border)}
-.stream-entry .ts{color:var(--muted);flex-shrink:0}
-.stream-entry .did{color:var(--accent);flex-shrink:0}
-.stream-entry .vals{color:var(--text)}
-.stream-entry .vals span{margin-right:8px}
-.stream-entry .vals .n{color:var(--green)}
-.telemetry-detail{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:center;justify-content:center}
-.telemetry-detail.open{display:flex}
-.telemetry-detail .modal{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:480px;width:90%;max-height:80vh;overflow-y:auto}
-.telemetry-detail .modal h2{font-size:16px;margin-bottom:4px}
-.telemetry-detail .modal .sub{font-size:12px;color:var(--muted);margin-bottom:16px}
-.telemetry-detail .modal .close{float:right;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer}
-.telemetry-detail .modal .close:hover{color:var(--text)}
-.telemetry-detail .modal .m-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.telemetry-detail .modal .m-item{background:var(--bg);border-radius:8px;padding:12px;text-align:center}
-.telemetry-detail .modal .m-item .mv{font-size:20px;font-weight:600;color:var(--accent)}
-.telemetry-detail .modal .m-item .ml{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-top:2px}
-.empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.loading-pulse{animation:pulse 1.5s ease-in-out infinite}
-@media(max-width:768px){.topbar{padding:0 16px}.container{padding:16px}.device-grid{grid-template-columns:1fr}.grid-4{grid-template-columns:repeat(2,1fr)}}
+.alert-body .msg{font-size:12px;color:var(--text)}
+.alert-body .meta{font-size:10px;color:var(--muted);margin-top:1px}
+.distro-row{display:flex;align-items:center;gap:10px;padding:4px 0}
+.distro-row .label{width:100px;font-size:12px;color:var(--text);flex-shrink:0}
+.distro-row .bar-wrap{flex:1;height:16px;background:var(--bg);border-radius:8px;overflow:hidden}
+.distro-row .bar{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.distro-row .count{font-size:12px;color:var(--muted);min-width:24px;text-align:right}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:768px){.settings-grid{grid-template-columns:1fr}}
+.setting-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.setting-card h4{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px}
+.setting-card .row{display:flex;justify-content:space-between;padding:5px 0;font-size:12px;border-bottom:1px solid var(--border)}
+.setting-card .row:last-child{border-bottom:none}
+.setting-card .row .key{color:var(--muted)}
+.setting-card .row .val{color:var(--text);font-family:'SF Mono','Fira Code',monospace;font-size:11px;max-width:60%;text-align:right;word-break:break-all}
+.empty{text-align:center;padding:30px 20px;color:var(--muted);font-size:12px}
+/* ── Toast ── */
+#toastContainer{position:fixed;top:16px;right:16px;z-index:300;display:flex;flex-direction:column;gap:8px;max-width:360px}
+.toast{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 20px rgba(0,0,0,.4);animation:toastIn .25s ease}
+.toast.success{border-color:var(--green)}.toast.error{border-color:var(--red)}.toast.info{border-color:var(--accent)}
+.toast .icon{font-weight:700;font-size:14px}
+.toast.success .icon{color:var(--green)}.toast.error .icon{color:var(--red)}.toast.info .icon{color:var(--accent)}
+@keyframes toastIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+/* ── Loader ── */
+.loader{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-overlay{display:flex;align-items:center;justify-content:center;padding:40px 0;gap:8px;color:var(--muted);font-size:13px}
+form .field-error{color:var(--red);font-size:10px;margin-top:2px;display:none}
+@media(max-width:768px){.topbar{padding:0 12px}.container{padding:12px}.device-grid{grid-template-columns:1fr}.grid-4{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <h1><span>D</span>eviceOS</h1>
-  <div class="topbar-right">
-    <span id="wsBadge" class="ws-badge off">disconnected</span>
-    <span id="versionBadge" class="version-badge">—</span>
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h1><span>D</span>eviceOS</h1>
+    <div class="sub">Sign in with your admin API key</div>
+    <label for="apiKey">Admin API Key</label>
+    <input id="apiKey" type="password" placeholder="dos_dev_admin_token_0001" autofocus>
+    <div class="hint">Find this in <code>deviceos.yaml</code> under <code>admin_api_key</code></div>
+    <div class="error" id="loginError"></div>
+    <button id="loginBtn" onclick="login()">Sign In</button>
   </div>
 </div>
 
-<nav>
-  <a class="active" onclick="showTab('overview')" id="tab-overview">Overview</a>
-  <a onclick="showTab('devices')" id="tab-devices">Devices</a>
-  <a onclick="showTab('telemetry')" id="tab-telemetry">Telemetry</a>
-  <a onclick="showTab('alerts')" id="tab-alerts">Alerts</a>
+<div id="toastContainer"></div>
+
+<div class="topbar">
+  <h1 onclick="showTab('overview')"><span>D</span>eviceOS</h1>
+  <div class="topbar-right">
+    <span class="user" id="userLabel">signed in</span>
+    <span id="wsBadge" class="ws-badge off">disconnected</span>
+    <span id="versionBadge" style="background:rgba(59,130,246,.1);color:var(--accent);padding:2px 8px;border-radius:10px;font-size:10px">—</span>
+    <button class="btn" onclick="logout()">sign out</button>
+  </div>
+</div>
+
+<nav id="mainNav">
+  <a class="active" onclick="showTab('overview')">Overview</a>
+  <a onclick="showTab('devices')">Devices</a>
+  <a onclick="showTab('telemetry')">Telemetry</a>
+  <a onclick="showTab('alerts')">Alerts</a>
+  <a onclick="showTab('commands')">Commands</a>
+  <a onclick="showTab('firmware')">Firmware</a>
+  <a onclick="showTab('webhooks')">Webhooks</a>
+  <a onclick="showTab('fleet')">Fleet</a>
+  <a onclick="showTab('orgs')">Orgs</a>
+  <a onclick="showTab('audit')">Audit</a>
+  <a onclick="showTab('settings')">Settings</a>
 </nav>
 
 <div class="container">
 
-<!-- === OVERVIEW === -->
+<!-- ═══ OVERVIEW ═══ -->
 <div class="section active" id="sec-overview">
   <div class="grid-4">
-    <div class="stat-card"><div class="label">Total Devices</div><div class="value blue" id="ovTotal">—</div></div>
+    <div class="stat-card"><div class="label">Devices</div><div class="value blue" id="ovTotal">—</div></div>
     <div class="stat-card"><div class="label">Online</div><div class="value green" id="ovOnline">—</div></div>
     <div class="stat-card"><div class="label">Offline</div><div class="value red" id="ovOffline">—</div></div>
     <div class="stat-card"><div class="label">Alerts</div><div class="value amber" id="ovAlerts">—</div></div>
   </div>
   <div class="card">
-    <h3>Temperature (realtime)</h3>
-    <div class="chart-wrap"><svg id="tempChart" viewBox="0 0 600 120" preserveAspectRatio="none"></svg></div>
+    <h3>Live Telemetry <select id="overviewMetric" onchange="renderOverview()"><option value="temperature">temperature</option></select></h3>
+    <div class="chart-wrap"><svg id="tempChart" viewBox="0 0 600 100" preserveAspectRatio="none"></svg></div>
   </div>
   <div class="card">
     <h3>Device Types</h3>
-    <div class="distro-list" id="distroList"><div class="empty">No devices registered</div></div>
+    <div id="distroList"><div class="empty">No devices</div></div>
   </div>
   <div class="card">
     <h3>Recent Alerts</h3>
-    <div class="alert-timeline" id="ovAlertsList"><div class="empty">No alerts yet</div></div>
+    <div id="ovAlertsList"><div class="empty">No alerts</div></div>
   </div>
 </div>
 
-<!-- === DEVICES === -->
+<!-- ═══ DEVICES ═══ -->
 <div class="section" id="sec-devices">
   <div class="grid-4">
     <div class="stat-card"><div class="label">Total</div><div class="value blue" id="devTotal">—</div></div>
@@ -139,216 +231,815 @@ nav a.active{color:var(--accent);border-bottom-color:var(--accent)}
     <div class="stat-card"><div class="label">Offline</div><div class="value red" id="devOffline">—</div></div>
     <div class="stat-card"><div class="label">Reporting</div><div class="value amber" id="devReporting">—</div></div>
   </div>
-  <div class="device-grid" id="deviceGrid"><div class="empty" style="grid-column:1/-1">No devices registered</div></div>
+  <div class="toolbar">
+    <input id="deviceSearch" placeholder="Search..." oninput="renderDevices()">
+    <select id="deviceTypeFilter" onchange="renderDevices()"><option value="">All types</option></select>
+    <button class="btn" onclick="showDeviceForm()">+ Add Device</button>
+  </div>
+  <div class="device-grid" id="deviceGrid"></div>
 </div>
 
-<div class="telemetry-detail" id="telemetryModal">
+<!-- Device add/edit modal -->
+<div class="modal-overlay" id="deviceFormModal">
   <div class="modal">
-    <button class="close" onclick="closeModal()">&times;</button>
+    <button class="close" onclick="hide('deviceFormModal')">&times;</button>
+    <h2 id="deviceFormTitle">Add Device</h2>
+    <label>Name</label><input id="dfName" placeholder="device-name">
+    <label>Type</label><input id="dfType" placeholder="temp-sensor">
+    <label>Tags (comma-separated)</label><input id="dfTags" placeholder="warehouse, sensor">
+    <label>Group</label><input id="dfGroup" placeholder="group-id">
+    <label>Metadata (JSON)</label><textarea id="dfMeta" placeholder='{"location":"warehouse-a"}'></textarea>
+    <div class="btn-row">
+      <button class="cancel" onclick="hide('deviceFormModal')">Cancel</button>
+      <button class="primary" id="deviceFormSubmit" onclick="saveDevice()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Device detail modal -->
+<div class="modal-overlay" id="deviceModal">
+  <div class="modal">
+    <button class="close" onclick="hide('deviceModal')">&times;</button>
     <h2 id="modalName">—</h2>
-    <div class="sub" id="modalMeta">—</div>
+    <div class="sub" id="modalMeta" style="font-size:12px;color:var(--muted);margin-bottom:12px">—</div>
     <div class="m-grid" id="modalMetrics"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn" style="font-size:11px;padding:6px 12px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="editDevice()">Edit</button>
+      <button class="btn" style="font-size:11px;padding:6px 12px;background:var(--red);color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="deleteDevice()">Delete</button>
+    </div>
   </div>
 </div>
 
-<!-- === TELEMETRY === -->
+<!-- ═══ TELEMETRY ═══ -->
 <div class="section" id="sec-telemetry">
-  <div class="card">
-    <h3>Temperature History</h3>
-    <div class="chart-wrap"><svg id="tempChartFull" viewBox="0 0 600 160" preserveAspectRatio="none"></svg></div>
+  <div class="toolbar">
+    <select id="telDeviceFilter" onchange="loadTelemetry()"><option value="">All devices</option></select>
+    <select id="telMetric" onchange="loadTelemetry()"><option value="temperature">Temperature</option><option value="humidity">Humidity</option><option value="battery">Battery</option></select>
+    <select id="telLimit" onchange="loadTelemetry()"><option value="20">20</option><option value="50">50</option><option value="100">100</option></select>
+    <button class="btn secondary" onclick="loadTelemetry()">Refresh</button>
   </div>
   <div class="card">
-    <h3>Live Stream</h3>
-    <div id="telemetryStream"><div class="empty">Waiting for telemetry data...</div></div>
+    <h3>History</h3>
+    <div class="chart-wrap"><svg id="telChart" viewBox="0 0 600 140" preserveAspectRatio="none"></svg></div>
+  </div>
+  <div class="card">
+    <h3>Stream</h3>
+    <div id="telemetryStream"><div class="empty">Waiting...</div></div>
   </div>
 </div>
 
-<!-- === ALERTS === -->
+<!-- ═══ ALERTS ═══ -->
 <div class="section" id="sec-alerts">
   <div class="grid-4">
+    <div class="stat-card"><div class="label">Rules</div><div class="value blue" id="alRules">—</div></div>
     <div class="stat-card"><div class="label">Critical</div><div class="value red" id="alCritical">0</div></div>
     <div class="stat-card"><div class="label">Warning</div><div class="value amber" id="alWarning">0</div></div>
     <div class="stat-card"><div class="label">Info</div><div class="value blue" id="alInfo">0</div></div>
-    <div class="stat-card"><div class="label">Total</div><div class="value" id="alTotal" style="color:#fff">0</div></div>
+  </div>
+  <div class="toolbar">
+    <button class="btn" onclick="showRuleForm()">+ New Rule</button>
+    <div style="flex:1"></div>
+    <div class="severity-pills" style="margin-bottom:0">
+      <span class="pill active" onclick="filterAlerts('all',this)">All</span>
+      <span class="pill" onclick="filterAlerts('critical',this)">Critical</span>
+      <span class="pill" onclick="filterAlerts('warning',this)">Warning</span>
+      <span class="pill" onclick="filterAlerts('info',this)">Info</span>
+    </div>
   </div>
   <div class="card">
-    <h3>Alert History</h3>
-    <div class="alert-timeline" id="alertHistory"><div class="empty">No alerts yet</div></div>
+    <h3>Rules</h3>
+    <table class="data-table" id="rulesTable"><tbody id="rulesBody"></tbody></table>
+  </div>
+  <div class="card">
+    <h3>History</h3>
+    <div id="alertHistory"><div class="empty">No alerts</div></div>
+  </div>
+</div>
+
+<!-- Alert rule form modal -->
+<div class="modal-overlay" id="ruleFormModal">
+  <div class="modal">
+    <button class="close" onclick="hide('ruleFormModal')">&times;</button>
+    <h2 id="ruleFormTitle">New Alert Rule</h2>
+    <label>Name</label><input id="rfName" placeholder="high-temperature">
+    <div class="form-row">
+      <div><label>Metric</label><input id="rfMetric" placeholder="temperature"></div>
+      <div><label>Operator</label><select id="rfOperator"><option>&gt;</option><option>&lt;</option><option>&gt;=</option><option>&lt;=</option><option>==</option></select></div>
+    </div>
+    <div class="form-row">
+      <div><label>Threshold</label><input id="rfThreshold" type="number" step="0.1" value="30"></div>
+      <div><label>Duration</label><input id="rfDuration" placeholder="5m" value="5m"></div>
+    </div>
+    <label>Channel</label><select id="rfChannel"><option value="log">Log</option></select>
+    <div class="btn-row">
+      <button class="cancel" onclick="hide('ruleFormModal')">Cancel</button>
+      <button class="primary" onclick="saveRule()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COMMANDS ═══ -->
+<div class="section" id="sec-commands">
+  <div class="toolbar">
+    <select id="cmdDeviceFilter" onchange="loadCommands()"><option value="">Select device</option></select>
+    <button class="btn" onclick="showCommandForm()">+ Send Command</button>
+  </div>
+  <div class="card">
+    <h3>Sent Commands</h3>
+    <table class="data-table"><thead><tr><th>ID</th><th>Command</th><th>Status</th><th>Sent</th></tr></thead><tbody id="commandsBody"></tbody></table>
+  </div>
+</div>
+
+<!-- Command form modal -->
+<div class="modal-overlay" id="cmdFormModal">
+  <div class="modal">
+    <button class="close" onclick="hide('cmdFormModal')">&times;</button>
+    <h2>Send Command</h2>
+    <label>Device</label><select id="cfDevice"></select>
+    <label>Command</label><input id="cfCommand" placeholder="ping, reboot, update-config, ...">
+    <label>Payload (JSON)</label><textarea id="cfPayload">{"origin": "dashboard"}</textarea>
+    <div class="btn-row">
+      <button class="cancel" onclick="hide('cmdFormModal')">Cancel</button>
+      <button class="primary" onclick="sendCommand()">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FIRMWARE / OTA ═══ -->
+<div class="section" id="sec-firmware">
+  <div class="toolbar">
+    <button class="btn" onclick="showFirmwareForm()">+ Upload Firmware</button>
+    <button class="btn secondary" onclick="loadFirmware()">Refresh</button>
+  </div>
+  <div class="card">
+    <h3>Firmware</h3>
+    <table class="data-table"><thead><tr><th>Version</th><th>Target</th><th>Size</th><th>Created</th><th></th></tr></thead><tbody id="firmwareBody"></tbody></table>
+  </div>
+  <div class="card">
+    <h3>Deployments</h3>
+    <table class="data-table"><thead><tr><th>ID</th><th>Firmware</th><th>Group</th><th>Rollout</th><th>Status</th></tr></thead><tbody id="deploymentsBody"></tbody></table>
+  </div>
+</div>
+
+<!-- Firmware form modal -->
+<div class="modal-overlay" id="firmwareFormModal">
+  <div class="modal">
+    <button class="close" onclick="hide('firmwareFormModal')">&times;</button>
+    <h2>Upload Firmware</h2>
+    <label>Version</label><input id="ffVersion" placeholder="1.0.0">
+    <label>Target Device Type</label><input id="ffTarget" placeholder="multi-sensor">
+    <label>Firmware File (.bin)</label><input id="ffFile" type="file">
+    <label>Changelog</label><textarea id="ffChangelog" placeholder="Bug fixes and improvements"></textarea>
+    <div class="btn-row">
+      <button class="cancel" onclick="hide('firmwareFormModal')">Cancel</button>
+      <button class="primary" onclick="uploadFirmware()">Upload</button>
+    </div>
+  </div>
+</div>
+
+<!-- Deploy firmware modal -->
+<div class="modal-overlay" id="deployFormModal">
+  <div class="modal">
+    <button class="close" onclick="hide('deployFormModal')">&times;</button>
+    <h2>Deploy Firmware</h2>
+    <label>Firmware ID</label><input id="dfFirmwareId" readonly>
+    <label>Target Group (optional)</label><input id="dfGroup" placeholder="group-id">
+    <label>Rollout %</label><input id="dfRollout" type="number" value="100" min="1" max="100">
+    <div class="btn-row">
+      <button class="cancel" onclick="hide('deployFormModal')">Cancel</button>
+      <button class="primary" onclick="deployFirmware()">Deploy</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WEBHOOKS ═══ -->
+<div class="section" id="sec-webhooks">
+  <div class="toolbar">
+    <button class="btn" onclick="showWebhookForm()">+ New Webhook</button>
+  </div>
+  <div class="card">
+    <h3>Webhooks</h3>
+    <table class="data-table"><thead><tr><th>Name</th><th>URL</th><th>Events</th><th>Status</th><th></th></tr></thead><tbody id="webhooksBody"></tbody></table>
+  </div>
+</div>
+
+<!-- Webhook form modal -->
+<div class="modal-overlay" id="whFormModal">
+  <div class="modal">
+    <button class="close" onclick="hide('whFormModal')">&times;</button>
+    <h2 id="whFormTitle">New Webhook</h2>
+    <label>Name</label><input id="whName" placeholder="slack-alerts">
+    <label>URL</label><input id="whUrl" placeholder="https://hooks.slack.com/...">
+    <label>Events (comma-separated)</label><input id="whEvents" value="telemetry, device.registered">
+    <div class="btn-row">
+      <button class="cancel" onclick="hide('whFormModal')">Cancel</button>
+      <button class="primary" onclick="saveWebhook()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FLEET ═══ -->
+<div class="section" id="sec-fleet">
+  <div class="grid-4">
+    <div class="stat-card"><div class="label">Total</div><div class="value blue" id="flTotal">—</div></div>
+    <div class="stat-card"><div class="label">Online</div><div class="value green" id="flOnline">—</div></div>
+    <div class="stat-card"><div class="label">Offline</div><div class="value red" id="flOffline">—</div></div>
+    <div class="stat-card"><div class="label">Groups</div><div class="value amber" id="flGroups">—</div></div>
+  </div>
+  <div class="toolbar">
+    <button class="btn" onclick="showGroupForm()">+ New Group</button>
+  </div>
+  <div class="card">
+    <h3>Groups</h3>
+    <table class="data-table"><thead><tr><th>ID</th><th>Name</th><th>Devices</th><th>Created</th><th></th></tr></thead><tbody id="groupsBody"></tbody></table>
+  </div>
+  <div class="card" id="groupDevicesCard" style="display:none">
+    <h3>Devices in <span id="groupDevicesTitle">—</span></h3>
+    <div id="groupDevicesList"><div class="empty">No devices in this group</div></div>
+  </div>
+</div>
+
+<!-- Group form modal -->
+<div class="modal-overlay" id="groupFormModal">
+  <div class="modal">
+    <button class="close" onclick="hide('groupFormModal')">&times;</button>
+    <h2>Create Group</h2>
+    <label>Name</label><input id="gfName" placeholder="warehouse-east">
+    <div class="btn-row">
+      <button class="cancel" onclick="hide('groupFormModal')">Cancel</button>
+      <button class="primary" onclick="saveGroup()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ORGS (Tenant) ═══ -->
+<div class="section" id="sec-orgs">
+  <div class="toolbar">
+    <button class="btn" onclick="showOrgForm()">+ New Org</button>
+  </div>
+  <div class="card">
+    <h3>Organizations</h3>
+    <table class="data-table"><thead><tr><th>ID</th><th>Name</th><th>Devices</th><th>Created</th><th></th></tr></thead><tbody id="orgsBody"></tbody></table>
+  </div>
+  <div class="card" id="orgUsersCard" style="display:none">
+    <h3>Users: <span id="orgUsersTitle">—</span></h3>
+    <div class="toolbar"><button class="btn secondary" onclick="showUserForm()">+ Invite User</button></div>
+    <table class="data-table"><thead><tr><th>Email</th><th>Role</th><th>Created</th></tr></thead><tbody id="usersBody"></tbody></table>
+  </div>
+</div>
+
+<!-- Org form modal -->
+<div class="modal-overlay" id="orgFormModal">
+  <div class="modal">
+    <button class="close" onclick="hide('orgFormModal')">&times;</button>
+    <h2>Create Organization</h2>
+    <label>Name</label><input id="ofName" placeholder="Acme Corp">
+    <div class="btn-row">
+      <button class="cancel" onclick="hide('orgFormModal')">Cancel</button>
+      <button class="primary" onclick="saveOrg()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- User form modal -->
+<div class="modal-overlay" id="userFormModal">
+  <div class="modal">
+    <button class="close" onclick="hide('userFormModal')">&times;</button>
+    <h2>Invite User</h2>
+    <label>Email</label><input id="ufEmail" placeholder="user@example.com">
+    <label>Role</label><select id="ufRole"><option value="viewer">Viewer</option><option value="admin">Admin</option><option value="operator">Operator</option></select>
+    <div class="btn-row">
+      <button class="cancel" onclick="hide('userFormModal')">Cancel</button>
+      <button class="primary" onclick="saveUser()">Invite</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ AUDIT ═══ -->
+<div class="section" id="sec-audit">
+  <div class="toolbar">
+    <select id="auditLimit" onchange="loadAudit()"><option value="20">20</option><option value="50">50</option><option value="100">100</option></select>
+    <button class="btn secondary" onclick="loadAudit()">Refresh</button>
+  </div>
+  <div class="card">
+    <h3>Audit Log</h3>
+    <table class="data-table"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead><tbody id="auditBody"></tbody></table>
+  </div>
+</div>
+
+<!-- ═══ SETTINGS ═══ -->
+<div class="section" id="sec-settings">
+  <div class="settings-grid">
+    <div class="setting-card"><h4>Server</h4><div id="serverInfo"><div class="empty">Loading</div></div></div>
+    <div class="setting-card"><h4>Modules</h4><div id="moduleInfo"><div class="empty">Loading</div></div></div>
+    <div class="setting-card"><h4>Configuration</h4><div id="configInfo"><div class="empty">Loading</div></div></div>
   </div>
 </div>
 
 </div>
 
 <script>
-const host=location.host,devices=new Map,latest=new Map,alerts=[],temps=[],teleHistory=[];
-let modalDid=null;
+const host=location.host,devices=new Map,latest=new Map,alerts=[],metricData={};
+let token=sessionStorage.getItem('dos_token')||'',alertFilter='all',ws=null,selectedOrgId='';
 
-function showTab(id){document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.querySelectorAll('nav a').forEach(a=>a.classList.remove('active'));document.getElementById('sec-'+id).classList.add('active');document.getElementById('tab-'+id).classList.add('active')}
+function $(id){return document.getElementById(id)}
+function show(id){$(id).classList.add('open')}
+function hide(id){$(id).classList.remove('open')}
 
-async function get(path){try{const r=await fetch(path);return await r.json()}catch{return null}}
-function by(id){return document.getElementById(id)}
+function getToken(){return token||''}
+function isAuthed(){return!!token}
 
+async function api(path,opts={}){
+  const headers={};
+  if(token)headers['Authorization']='Bearer '+token;
+  if(!(opts.body instanceof FormData))headers['Content-Type']='application/json';
+  try{
+    const r=await fetch(path,{...opts,headers});
+    if(r.status===401){sessionStorage.removeItem('dos_token');token='';$('loginOverlay').classList.remove('hidden');toast('Session expired, please sign in again','info');return null}
+    if(r.status===204)return{};
+    const ct=r.headers.get('content-type')||'';
+    if(ct.includes('json')){
+      const data=await r.json();
+      if(!r.ok){toast(data.error||data.message||'Request failed','error');return null}
+      return data
+    }
+    if(!r.ok){toast('Request failed ('+r.status+')','error');return null}
+    return null
+  }catch(e){toast('Network error: '+(e.message||'connection failed'),'error');return null}
+}
+
+async function login(){
+  const key=$('apiKey').value,btn=$('loginBtn'),err=$('loginError');
+  if(!key){err.textContent='Please enter your admin API key';err.style.display='block';return}
+  btn.disabled=true;err.style.display='none';
+  const data=await api('/api/v1/auth/login',{method:'POST',body:JSON.stringify({api_key:key})});
+  if(data&&data.token){
+    token=data.token;sessionStorage.setItem('dos_token',token);
+    $('loginOverlay').classList.add('hidden');$('userLabel').textContent='admin';
+    init();btn.disabled=false
+  }else{err.textContent='Invalid API key';err.style.display='block';btn.disabled=false}
+}
+function logout(){
+  token='';sessionStorage.removeItem('dos_token');
+  $('loginOverlay').classList.remove('hidden');if(ws)ws.close()
+}
+if(isAuthed()){$('loginOverlay').classList.add('hidden');$('userLabel').textContent='admin'}
+
+function showTab(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('nav a').forEach(a=>a.classList.remove('active'));
+  $('sec-'+id).classList.add('active');
+  document.querySelector(`nav a[onclick*="'${id}'"]`).classList.add('active');
+  if(id==='settings')loadSettings();
+  if(id==='firmware')loadFirmware();
+  if(id==='webhooks')loadWebhooks();
+  if(id==='fleet'){loadGroups();loadFleetHealth()}
+  if(id==='orgs')loadOrgs();
+  if(id==='audit')loadAudit();
+  if(id==='commands')loadCommands();
+  if(id==='alerts')loadRules();
+}
+
+// ── Helpers ──
 function fmtTime(iso){if(!iso)return'—';try{return new Date(iso).toLocaleTimeString()}catch{return'—'}}
 function fmtDate(iso){if(!iso)return'—';try{return new Date(iso).toLocaleString()}catch{return'—'}}
 function fmtNum(n){if(n==null)return'—';if(typeof n==='number')return n.toFixed(1);return String(n)}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
-async function loadDevices(){
-  const data=await get('/api/v1/devices');
-  if(!data||!data.devices)return;
-  for(const d of data.devices)devices.set(d.id,d);
-  renderOverview();renderDevices()
+// ── Toast notifications ──
+function toast(msg,type='success'){
+  const c=$('toastContainer'),el=document.createElement('div');
+  el.className='toast '+type;
+  const icon={success:'✓',error:'✗',info:'ℹ'}[type]||'i';
+  el.innerHTML=`<span class="icon">${icon}</span><span>${esc(msg)}</span>`;
+  c.appendChild(el);setTimeout(()=>{el.style.opacity='0';el.style.transition='opacity .3s';setTimeout(()=>el.remove(),300)},3500)
 }
 
-async function loadAlerts(){
-  const data=await get('/api/v1/alerts/history');
-  if(!data||!data.events)return;
-  alerts.length=0;for(const a of data.events)alerts.push(a);
-  renderAlerts()
+// ── Loading state helpers ──
+function setLoading(el,loading){
+  if(!el)return;
+  if(loading){el._origText=el.textContent;el.disabled=true;el.innerHTML=`<span class="loader"></span>`;el.style.pointerEvents='none'}
+  else{el.disabled=false;el.innerHTML=el._origText||'';el.style.pointerEvents=''}
 }
 
-async function loadHealth(){
-  const data=await get('/healthz');
-  by('versionBadge').textContent=data?'v'+(data.version||'?'):'offline'
+// ── Form field validation ──
+const _fieldErrors={};
+function validateField(id,msg){
+  const el=$(id);if(!el)return true;
+  if(!msg){delete _fieldErrors[id];el.style.borderColor='';const fb=el.parentNode?.querySelector('.field-error');if(fb)fb.style.display='none';return true}
+  _fieldErrors[id]=msg;el.style.borderColor='var(--red)';
+  let fb=el.parentNode?.querySelector('.field-error');
+  if(!fb){fb=document.createElement('div');fb.className='field-error';el.parentNode?.appendChild(fb)}
+  fb.textContent=msg;fb.style.display='block';return false
+}
+function validateForm(fields){
+  let ok=true;
+  for(const[id,msg]of Object.entries(fields)){
+    const el=$(id);if(!el||!el.value.trim()){validateField(id,msg);ok=false}else validateField(id)
+  }
+  return ok
 }
 
 function svgChart(canvas,points,color){
-  const w=600,h=canvas===by('tempChart')?120:160,pad=4;
+  const w=600,h=canvas.getAttribute('viewBox')?parseInt(canvas.getAttribute('viewBox').split(' ')[3]):100,pad=4;
   const n=points.length;if(!n){canvas.innerHTML='';return}
-  const vals=points.map(p=>p.v??0),mx=Math.max(...vals,1);
-  const xStep=(w-pad*2)/Math.max(n-1,1);
-  const d=vals.map((v,i)=>{const x=pad+i*xStep,y=h-pad-(v/mx)*(h-pad*2);return`${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`}).join(' ');
-  const fill=`M${pad},${h-pad}L${pad},${(h-pad-(vals[0]/mx)*(h-pad*2)).toFixed(1)}${d.slice(1)}L${pad+(n-1)*xStep},${h-pad}Z`;
+  const vals=points.map(p=>p.v??0),mx=Math.max(...vals,1),xs=Math.max(n-1,1);
+  const d=vals.map((v,i)=>{const x=pad+i*(w-pad*2)/xs,y=h-pad-(v/mx)*(h-pad*2);return`${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`}).join(' ');
+  const cid=color.replace('#','');
   canvas.innerHTML=`
-    <defs><linearGradient id="g${color}" x1="0" y1="0" x2="0" y2="1">
+    <defs><linearGradient id="g${cid}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${color}" stop-opacity=".25"/>
       <stop offset="100%" stop-color="${color}" stop-opacity=".02"/>
     </linearGradient></defs>
-    <path d="${fill}" fill="url(#g${color})"/>
-    <path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  `
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
 }
 
+// ── Overview ──
 function renderOverview(){
-  let online=0,offline=0;
-  for(const d of devices.values()){if(d.status==='online')online++;else offline++}
-  by('ovTotal').textContent=devices.size;by('ovOnline').textContent=online;by('ovOffline').textContent=offline;by('ovAlerts').textContent=alerts.length;
-  // device types
+  let on=0,off=0;
+  for(const d of devices.values()){if(d.status==='online')on++;else off++}
+  $('ovTotal').textContent=devices.size;$('ovOnline').textContent=on;$('ovOffline').textContent=off;$('ovAlerts').textContent=alerts.length;
   const distro={};for(const d of devices.values()){const t=d.type||'unknown';distro[t]=(distro[t]||0)+1}
   const total=devices.size||1;
-  by('distroList').innerHTML=Object.entries(distro).map(([t,c])=>`
-    <div class="distro-row">
-      <span class="label">${t}</span>
-      <div class="bar-wrap"><div class="bar" style="width:${(c/total*100).toFixed(1)}%"></div></div>
-      <span class="count">${c}</span>
-    </div>`).join('')||'<div class="empty">No devices registered</div>';
-  // temp chart
-  svgChart(by('tempChart'),temps.slice(-60),'#3b82f6');
-  // recent alerts
-  const list=by('ovAlertsList');
-  list.innerHTML=alerts.slice(0,8).map(a=>`
-    <div class="alert-item">
-      <div class="alert-icon ${a.severity||'info'}">${a.severity==='critical'?'!':a.severity==='warning'?'!':'i'}</div>
-      <div class="alert-body"><div class="msg">${a.message||a.description||'Alert'}</div><div class="meta">${a.device_id||''} · ${fmtDate(a.created_at)}</div></div>
-    </div>`).join('')||'<div class="empty">No alerts yet</div>'
+  $('distroList').innerHTML=Object.entries(distro).map(([t,c])=>`<div class="distro-row"><span class="label">${esc(t)}</span><div class="bar-wrap"><div class="bar" style="width:${(c/total*100).toFixed(1)}%"></div></div><span class="count">${c}</span></div>`).join('')||'<div class="empty">No devices</div>';
+  // Update overview metric selector with available metrics
+  const sel=$('overviewMetric'),keys=Object.keys(metricData);
+  if(keys.length){const cur=sel.value;sel.innerHTML=keys.map(k=>`<option value="${k}">${k}</option>`).join('');sel.value=keys.includes(cur)?cur:keys[0]}
+  const preferred=sel.value||keys[0];
+  svgChart($('tempChart'),(metricData[preferred]||[]).slice(-60),'#3b82f6');
+  $('ovAlertsList').innerHTML=alerts.slice(0,8).map(a=>`<div class="alert-item"><div class="alert-icon ${a.severity||'info'}">${a.severity==='critical'?'!':a.severity==='warning'?'!':'i'}</div><div class="alert-body"><div class="msg">${esc(a.message||a.description||'Alert')}</div><div class="meta">${esc(a.device_id||'')} · ${fmtDate(a.created_at)}</div></div>`).join('')||'<div class="empty">No alerts</div>';
+}
+
+// ── Devices ──
+async function loadDevices(){
+  const data=await api('/api/v1/devices');
+  if(!data||!data.devices)return;
+  devices.clear();for(const d of data.devices)devices.set(d.id,d);
+  const types=new Set();
+  for(const d of devices.values())if(d.type)types.add(d.type);
+  const sel=$('deviceTypeFilter'),cur=sel.value;
+  sel.innerHTML='<option value="">All types</option>'+[...types].sort().map(t=>`<option value="${t}">${esc(t)}</option>`).join('');
+  sel.value=cur;
+  // populate device selects
+  for(const id of['telDeviceFilter','cmdDeviceFilter','cfDevice']){
+    const s=$(id);if(!s)continue;
+    const v=s.value;
+    s.innerHTML='<option value="">All devices</option>'+[...devices.entries()].map(([id,d])=>`<option value="${id}">${esc(d.name||id)}</option>`).join('');
+    s.value=v
+  }
+  renderDevices();renderOverview()
 }
 
 function renderDevices(){
-  let online=0,offline=0,reporting=0;
-  for(const d of devices.values()){if(d.status==='online')online++;else offline++}
-  for(const [id] of latest){if(devices.has(id))reporting++}
-  by('devTotal').textContent=devices.size;by('devOnline').textContent=online;by('devOffline').textContent=offline;by('devReporting').textContent=reporting;
-  const grid=by('deviceGrid');
-  if(!devices.size){grid.innerHTML='<div class="empty" style="grid-column:1/-1">No devices registered</div>';return}
-  grid.innerHTML='';
-  for(const [id,d] of devices){
+  let on=0,off=0,rpt=0;
+  for(const d of devices.values()){if(d.status==='online')on++;else off++}
+  for(const[id]of latest)if(devices.has(id))rpt++;
+  $('devTotal').textContent=devices.size;$('devOnline').textContent=on;$('devOffline').textContent=off;$('devReporting').textContent=rpt;
+  const grid=$('deviceGrid');grid.innerHTML='';
+  if(!devices.size){grid.innerHTML='<div class="empty" style="grid-column:1/-1">No devices</div>';return}
+  const q=$('deviceSearch').value.toLowerCase(),tf=$('deviceTypeFilter').value;
+  const f=[...devices.entries()].filter(([id,d])=>{
+    if(tf&&d.type!==tf)return false;
+    if(q&&!(d.name||id).toLowerCase().includes(q))return false;
+    return true
+  });
+  if(!f.length){grid.innerHTML='<div class="empty" style="grid-column:1/-1">No matches</div>';return}
+  for(const[id,d]of f){
     const t=latest.get(id);
     const card=document.createElement('div');card.className='device-card';
-    card.onclick=()=>openModal(id);
-    const metrics=t&&t.metrics?Object.entries(t.metrics).slice(0,3).map(([k,v])=>`<div class="metric"><div class="val">${fmtNum(v)}</div><div class="lbl">${k}</div></div>`).join(''):'<div class="metric"><div class="val">—</div><div class="lbl">no data</div></div>';
-    const seen=d.last_seen?fmtTime(d.last_seen):'—';
-    card.innerHTML=`
-      <div class="top">
-        <div><div class="name">${d.name||id}</div><div class="type">${d.type||'device'}</div></div>
-        <span class="status-badge ${d.status==='online'?'online':'offline'}">${d.status||'offline'}</span>
-      </div>
-      <div class="metrics">${metrics}</div>
-      <div class="last-seen">last seen: ${seen}</div>`;
+    card.onclick=()=>showDeviceDetail(id);
+    const m=t&&t.metrics?Object.entries(t.metrics).slice(0,3).map(([k,v])=>`<div class="metric"><div class="val">${fmtNum(v)}</div><div class="lbl">${k}</div></div>`).join(''):'<div class="metric"><div class="val">—</div><div class="lbl">no data</div></div>';
+    const labels=[];
+    if(d.group)labels.push(esc(d.group));
+    if(d.org_id)labels.push('org:'+esc(d.org_id.slice(0,8)));
+    card.innerHTML=`<div class="top"><div><div class="name">${esc(d.name||id)}</div><div class="type">${esc(d.type||'device')}</div></div><span class="badge ${d.status==='online'?'green':'red'}">${d.status||'offline'}</span></div><div class="metrics">${m}</div><div class="last-seen">${labels.length?'<span style="font-size:10px;color:var(--muted)">'+labels.join(' · ')+'</span> · ':''}last seen: ${d.last_seen?fmtTime(d.last_seen):'—'}</div>`;
     grid.appendChild(card)
   }
 }
 
-function openModal(id){
-  modalDid=id;const d=devices.get(id),t=latest.get(id);
+let _selectedDeviceId='';
+function showDeviceDetail(id){
+  _selectedDeviceId=id;const d=devices.get(id),t=latest.get(id);
   if(!d)return;
-  by('telemetryModal').classList.add('open');
-  by('modalName').textContent=d.name||id;
-  by('modalMeta').textContent=(d.type||'device')+' · status: '+(d.status||'unknown');
-  const grid=by('modalMetrics');
-  if(t&&t.metrics){
-    grid.innerHTML=Object.entries(t.metrics).map(([k,v])=>`<div class="m-item"><div class="mv">${fmtNum(v)}</div><div class="ml">${k}</div></div>`).join('')
+  $('modalName').textContent=d.name||id;
+  $('modalMeta').textContent=(d.type||'device')+' · id: '+id+' · status: '+(d.status||'unknown')+(d.group?' · group: '+d.group:'');
+  $('modalMetrics').innerHTML=t&&t.metrics?Object.entries(t.metrics).map(([k,v])=>`<div class="m-item"><div class="mv">${fmtNum(v)}</div><div class="ml">${k}</div></div>`).join(''):'<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:16px">No telemetry</div>';
+  show('deviceModal')
+}
+$('deviceModal').onclick=e=>{if(e.target===$('deviceModal'))hide('deviceModal')};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('deviceModal').classList.remove('open');$('deviceFormModal').classList.remove('open')}});
+
+function showDeviceForm(editId){
+  $('deviceFormTitle').textContent=editId?'Edit Device':'Add Device';
+  $('deviceFormSubmit').textContent=editId?'Save':'Create';
+  $('deviceFormSubmit').dataset.editId=editId||'';
+  if(editId){const d=devices.get(editId);if(!d)return;
+    $('dfName').value=d.name||'';$('dfType').value=d.type||'';
+    $('dfTags').value=(d.tags||[]).join(', ');$('dfGroup').value=d.group||'';
+    $('dfMeta').value=d.metadata?JSON.stringify(d.metadata,null,2):''
+  }else{$('dfName').value='';$('dfType').value='';$('dfTags').value='';$('dfGroup').value='';$('dfMeta').value=''}
+  show('deviceFormModal')
+}
+async function saveDevice(){
+  const eid=$('deviceFormSubmit').dataset.editId;
+  let tags=$('dfTags').value.split(',').map(s=>s.trim()).filter(Boolean);
+  let meta={};try{meta=$('dfMeta').value?JSON.parse($('dfMeta').value):{}}catch{meta={}}
+  const body={name:$('dfName').value,type:$('dfType').value,tags,group:$('dfGroup').value,metadata:meta};
+  if(eid){
+    const data=await api(`/api/v1/devices/${eid}`,{method:'PUT',body:JSON.stringify(body)});
+    if(data&&data.id){hide('deviceFormModal');loadDevices()}
   }else{
-    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--muted);padding:16px">No telemetry yet</div>'
+    const data=await api('/api/v1/devices',{method:'POST',body:JSON.stringify(body)});
+    if(data&&data.device){hide('deviceFormModal');loadDevices()}
   }
 }
-function closeModal(){by('telemetryModal').classList.remove('open')}
-by('telemetryModal').onclick=e=>{if(e.target===by('telemetryModal'))closeModal()};
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+async function editDevice(){hide('deviceModal');showDeviceForm(_selectedDeviceId)}
+async function deleteDevice(){
+  if(!confirm('Delete this device?'))return;
+  await api(`/api/v1/devices/${_selectedDeviceId}`,{method:'DELETE'});
+  hide('deviceModal');loadDevices()
+}
 
+// ── Telemetry ──
+function onTelemetry(t){
+  latest.set(t.device_id,t);
+  if(t.metrics)for(const[k,v]of Object.entries(t.metrics)){
+    if(!metricData[k])metricData[k]=[];
+    metricData[k].push({v,l:(t.device_id||'').slice(0,6)});
+    if(metricData[k].length>200)metricData[k].splice(0,metricData[k].length-200)
+  }
+  const el=$('telemetryStream'),entry=document.createElement('div');
+  entry.className='stream-entry';
+  const vals=t.metrics?Object.entries(t.metrics).map(([k,v])=>`<span>${k}: <span class="n">${fmtNum(v)}</span></span>`).join(''):'';
+  entry.innerHTML=`<span class="ts">${new Date().toLocaleTimeString()}</span><span class="did">${esc((t.device_id||'').slice(0,8))}</span><span class="vals">${vals}</span>`;
+  el.prepend(entry);while(el.children.length>500)el.removeChild(el.lastChild);
+  el.querySelector('.empty')?.remove();
+  if($('sec-devices').classList.contains('active'))renderDevices();
+  if($('sec-overview').classList.contains('active'))renderOverview()
+}
+async function loadTelemetry(){
+  const did=$('telDeviceFilter').value,limit=$('telLimit').value,metric=$('telMetric').value;
+  const data=did?await api(`/api/v1/telemetry?device_id=${did}&limit=${limit}`):null;
+  if(data&&data.telemetry){
+    const pts=data.telemetry.filter(t=>t.metrics&&t.metrics[metric]!=null).map(t=>({v:t.metrics[metric],l:(t.device_id||'').slice(0,6)}));
+    svgChart($('telChart'),pts.slice(-100),'#3b82f6');
+    // Also populate metricData from history for telemetry tab chart
+    for(const t of data.telemetry)if(t.metrics)for(const[k,v]of Object.entries(t.metrics)){
+      if(!metricData[k])metricData[k]=[];
+      metricData[k].push({v,l:(t.device_id||'').slice(0,6)});
+      if(metricData[k].length>200)metricData[k].splice(0,metricData[k].length-200)
+    }
+  }
+}
+
+// ── Alerts ──
+let rules=[];
+async function loadRules(){
+  const data=await api('/api/v1/alerts/rules');
+  if(data&&data.rules){rules=data.rules;$('alRules').textContent=rules.length;renderRules()}
+}
+function renderRules(){
+  $('rulesBody').innerHTML=rules.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.metric)} ${esc(r.operator)} ${r.threshold}</td><td><span class="badge ${r.enabled?'green':'red'}">${r.enabled?'enabled':'disabled'}</span></td><td>${fmtDate(r.created_at)}</td><td class="actions"><button onclick="toggleRule('${r.id}',${!r.enabled})">${r.enabled?'Disable':'Enable'}</button><button class="danger" onclick="deleteRule('${r.id}')">Delete</button></td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--muted)">No rules</td></tr>'
+}
+async function toggleRule(id,enabled){
+  await api(`/api/v1/alerts/rules/${id}`,{method:'PUT',body:JSON.stringify({enabled})});
+  loadRules()
+}
+async function deleteRule(id){
+  if(!confirm('Delete this rule?'))return;
+  await api(`/api/v1/alerts/rules/${id}`,{method:'DELETE'});loadRules()
+}
+function showRuleForm(rule){
+  $('ruleFormTitle').textContent=rule?'Edit Rule':'New Alert Rule';
+  if(rule){
+    $('rfName').value=rule.name;$('rfMetric').value=rule.metric;
+    $('rfOperator').value=rule.operator;$('rfThreshold').value=rule.threshold;
+    $('rfDuration').value=rule.duration||'5m';$('rfChannel').value=rule.channel||'log';
+    $('ruleFormSubmit').dataset.editId=rule.id
+  }else{
+    $('rfName').value='';$('rfMetric').value='temperature';$('rfOperator').value='>';
+    $('rfThreshold').value='30';$('rfDuration').value='5m';$('rfChannel').value='log';
+    delete $('ruleFormSubmit').dataset.editId
+  }
+  show('ruleFormModal')
+}
+async function saveRule(){
+  const eid=$('ruleFormSubmit').dataset.editId;
+  const body={name:$('rfName').value,metric:$('rfMetric').value,operator:$('rfOperator').value,threshold:parseFloat($('rfThreshold').value),duration:$('rfDuration').value,channel:$('rfChannel').value,enabled:true};
+  if(eid)await api(`/api/v1/alerts/rules/${eid}`,{method:'PUT',body:JSON.stringify(body)});
+  else await api('/api/v1/alerts/rules',{method:'POST',body:JSON.stringify(body)});
+  hide('ruleFormModal');loadRules()
+}
+
+async function loadAlerts(){
+  const data=await api('/api/v1/alerts/history');
+  if(!data||!data.events)return;
+  alerts.length=0;for(const a of data.events)alerts.push(a);
+  renderAlerts();if($('sec-overview').classList.contains('active'))renderOverview()
+}
 function renderAlerts(){
   const crit=alerts.filter(a=>a.severity==='critical').length;
   const warn=alerts.filter(a=>a.severity==='warning').length;
   const info=alerts.filter(a=>a.severity==='info').length;
-  by('alCritical').textContent=crit;by('alWarning').textContent=warn;by('alInfo').textContent=info;by('alTotal').textContent=alerts.length;
-  by('alertHistory').innerHTML=alerts.slice(0,50).map(a=>`
-    <div class="alert-item">
-      <div class="alert-icon ${a.severity||'info'}">${a.severity==='critical'?'!':a.severity==='warning'?'!':'i'}</div>
-      <div class="alert-body"><div class="msg">${a.message||a.description||'Alert'}</div><div class="meta">${a.device_id||''} · ${fmtDate(a.created_at)}</div></div>
-    </div>`).join('')||'<div class="empty">No alerts yet</div>'
+  $('alCritical').textContent=crit;$('alWarning').textContent=warn;$('alInfo').textContent=info;
+  const f=alertFilter==='all'?alerts:alerts.filter(a=>a.severity===alertFilter);
+  $('alertHistory').innerHTML=f.slice(0,50).map(a=>`<div class="alert-item"><div class="alert-icon ${a.severity||'info'}">${a.severity==='critical'?'!':a.severity==='warning'?'!':'i'}</div><div class="alert-body"><div class="msg">${esc(a.message||a.description||'Alert')}</div><div class="meta">${esc(a.device_id||'')} · ${fmtDate(a.created_at)}</div></div></div>`).join('')||'<div class="empty">No alerts</div>'
+}
+function filterAlerts(sev,el){
+  alertFilter=sev;
+  document.querySelectorAll('#sec-alerts .severity-pills .pill').forEach(p=>p.classList.remove('active'));
+  if(el)el.classList.add('active');
+  renderAlerts()
 }
 
-function onTelemetry(t){
-  latest.set(t.device_id,t);
-  if(t.metrics&&t.metrics.temperature!=null){
-    const v=t.metrics.temperature;
-    temps.push({v,l:t.device_id.slice(0,6)});
-    if(temps.length>200)temps.splice(0,temps.length-200);
-    svgChart(by('tempChart'),temps.slice(-60),'#3b82f6');
-    svgChart(by('tempChartFull'),temps.slice(-120),'#3b82f6')
+// ── Commands ──
+async function loadCommands(){
+  const did=$('cmdDeviceFilter').value;
+  if(!did){$('commandsBody').innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted)">Select a device</td></tr>';return}
+  const data=await api(`/api/v1/devices/${did}/commands`);
+  if(data&&data.commands){
+    $('commandsBody').innerHTML=data.commands.map(c=>`<tr><td style="font-family:monospace;font-size:10px">${esc(c.id.slice(0,16))}...</td><td>${esc(c.command)}</td><td><span class="badge ${c.status==='completed'?'green':c.status==='pending'?'amber':'blue'}">${c.status}</span></td><td>${fmtDate(c.created_at)}</td></tr>`).join('')||'<tr><td colspan="4" style="text-align:center;color:var(--muted)">No commands</td></tr>'
   }
-  // telemetry stream
-  const el=by('telemetryStream'),entry=document.createElement('div');
-  entry.className='stream-entry';
-  const vals=t.metrics?Object.entries(t.metrics).map(([k,v])=>`<span>${k}: <span class="n">${fmtNum(v)}</span></span>`).join(''):'';
-  entry.innerHTML=`<span class="ts">${new Date().toLocaleTimeString()}</span><span class="did">${(t.device_id||'').slice(0,8)}</span><span class="vals">${vals}</span>`;
-  el.prepend(entry);
-  const max=500;while(el.children.length>max)el.removeChild(el.lastChild);
-  el.querySelector('.empty')?.remove();
-  // update device cards if open
-  if(document.getElementById('sec-devices').classList.contains('active'))renderDevices();
-  if(by('sec-overview').classList.contains('active')){by('ovTotal').textContent=devices.size;renderOverview();by('ovAlerts').textContent=alerts.length}
-  // update modal if open
-  if(modalDid&&t.device_id===modalDid){const d=devices.get(modalDid);if(d)openModal(modalDid)}
+}
+function showCommandForm(){
+  const sel=$('cfDevice');
+  sel.innerHTML=[...devices.entries()].map(([id,d])=>`<option value="${id}">${esc(d.name||id)}</option>`).join('');
+  if($('cmdDeviceFilter').value)sel.value=$('cmdDeviceFilter').value;
+  $('cfCommand').value='ping';$('cfPayload').value='{"origin":"dashboard"}';
+  show('cmdFormModal')
+}
+async function sendCommand(){
+  const did=$('cfDevice').value,cmd=$('cfCommand').value;
+  let payload={};try{payload=JSON.parse($('cfPayload').value)}catch{payload={}}
+  const data=await api(`/api/v1/devices/${did}/commands`,{method:'POST',body:JSON.stringify({command:cmd,payload})});
+  if(data&&data.id){hide('cmdFormModal');loadCommands()}
 }
 
+// ── Firmware ──
+async function loadFirmware(){
+  const data=await api('/api/v1/firmware');
+  if(data&&data.firmware){
+    $('firmwareBody').innerHTML=data.firmware.map(f=>`<tr><td><b>${esc(f.version)}</b></td><td>${esc(f.target_device_type)}</td><td>${f.size?((f.size/1024).toFixed(1)+' KB'):'—'}</td><td>${fmtDate(f.created_at)}</td><td class="actions"><button onclick="showDeployForm('${f.id}')">Deploy</button></td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--muted)">No firmware</td></tr>'
+  }
+  // Load deployments
+  // Note: deployments endpoint requires specific ID, so we show known ones from the session
+}
+function showFirmwareForm(){$('ffVersion').value='';$('ffTarget').value='';$('ffChangelog').value='';show('firmwareFormModal')}
+async function uploadFirmware(){
+  const fd=new FormData();
+  fd.append('version',$('ffVersion').value);
+  fd.append('target_device_type',$('ffTarget').value);
+  fd.append('changelog',$('ffChangelog').value);
+  const file=$('ffFile').files[0];
+  if(file)fd.append('file',file);
+  const data=await api('/api/v1/firmware',{method:'POST',body:fd});
+  if(data&&data.id){hide('firmwareFormModal');loadFirmware()}
+}
+function showDeployForm(fid){$('dfFirmwareId').value=fid;$('dfGroup').value='';$('dfRollout').value='100';show('deployFormModal')}
+async function deployFirmware(){
+  const data=await api(`/api/v1/firmware/${$('dfFirmwareId').value}/deploy`,{method:'POST',body:JSON.stringify({target_group:$('dfGroup').value,rollout_percent:parseInt($('dfRollout').value)})});
+  if(data&&data.id){hide('deployFormModal');loadFirmware()}
+}
+
+// ── Webhooks ──
+async function loadWebhooks(){
+  const data=await api('/api/v1/webhooks');
+  if(data&&data.webhooks){
+    $('webhooksBody').innerHTML=data.webhooks.map(w=>`<tr><td><b>${esc(w.name)}</b></td><td style="font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(w.url)}</td><td>${(w.events||[]).join(', ')}</td><td><span class="badge ${w.enabled?'green':'red'}">${w.enabled?'active':'disabled'}</span></td><td class="actions"><button class="danger" onclick="deleteWebhook('${w.id}')">Delete</button></td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--muted)">No webhooks</td></tr>'
+  }
+}
+function showWebhookForm(){$('whName').value='';$('whUrl').value='';$('whEvents').value='telemetry, device.registered';show('whFormModal')}
+async function saveWebhook(){
+  const events=$('whEvents').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const data=await api('/api/v1/webhooks',{method:'POST',body:JSON.stringify({name:$('whName').value,url:$('whUrl').value,events,enabled:true})});
+  if(data&&data.id){hide('whFormModal');loadWebhooks()}
+}
+async function deleteWebhook(id){
+  if(!confirm('Delete this webhook?'))return;
+  await api(`/api/v1/webhooks/${id}`,{method:'DELETE'});loadWebhooks()
+}
+
+// ── Fleet ──
+async function loadGroups(){
+  const data=await api('/api/v1/groups');
+  if(data&&data.groups){
+    // Count devices per group
+    const devs=[...devices.values()];
+    $('groupsBody').innerHTML=data.groups.map(g=>{
+      const cnt=devs.filter(d=>d.group===g.id).length;
+      return `<tr style="cursor:pointer" onclick="showGroupDevices('${esc(g.id)}','${esc(g.name)}')"><td style="font-family:monospace;font-size:10px">${esc(g.id)}</td><td><b>${esc(g.name)}</b></td><td>${cnt}</td><td>${fmtDate(g.created_at)}</td><td class="actions"><button class="danger" onclick="event.stopPropagation();deleteGroup('${g.id}')">Delete</button></td></tr>`
+    }).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--muted)">No groups</td></tr>'
+  }
+}
+function showGroupDevices(groupId,groupName){
+  $('groupDevicesCard').style.display='block';
+  $('groupDevicesTitle').textContent=esc(groupName);
+  const members=[...devices.values()].filter(d=>d.group===groupId);
+  $('groupDevicesList').innerHTML=members.length?members.map(d=>
+    `<div class="device-card" style="cursor:pointer;margin-bottom:6px" onclick="showDeviceDetail('${d.id}')">
+      <div class="top"><div><div class="name">${esc(d.name||d.id)}</div><div class="type">${esc(d.type||'device')}</div></div><span class="badge ${d.status==='online'?'green':'red'}">${d.status||'offline'}</span></div>
+    </div>`
+  ).join(''):'<div class="empty">No devices in this group</div>'
+}
+async function loadFleetHealth(){
+  const data=await api('/api/v1/fleet/health');
+  if(data){
+    $('flTotal').textContent=data.total_devices||0;
+    $('flOnline').textContent=data.online_devices||0;
+    $('flOffline').textContent=data.offline_devices||0
+  }
+  const gdata=await api('/api/v1/groups');
+  if(gdata&&gdata.groups)$('flGroups').textContent=gdata.groups.length
+}
+function showGroupForm(){$('gfName').value='';show('groupFormModal')}
+async function saveGroup(){
+  const data=await api('/api/v1/groups',{method:'POST',body:JSON.stringify({name:$('gfName').value})});
+  if(data&&data.id){hide('groupFormModal');loadGroups();loadFleetHealth()}
+}
+async function deleteGroup(id){
+  if(!confirm('Delete this group?'))return;
+  await api(`/api/v1/groups/${id}`,{method:'DELETE'});loadGroups();loadFleetHealth()
+}
+
+// ── Orgs ──
+async function loadOrgs(){
+  const data=await api('/api/v1/orgs');
+  if(data&&data.orgs){
+    const devs=[...devices.values()];
+    $('orgsBody').innerHTML=data.orgs.map(o=>{
+      const cnt=devs.filter(d=>d.org_id===o.id).length;
+      return `<tr><td style="font-family:monospace;font-size:10px">${esc(o.id)}</td><td><b>${esc(o.name)}</b></td><td>${cnt}</td><td>${fmtDate(o.created_at)}</td><td class="actions"><button onclick="showOrgUsers('${o.id}','${esc(o.name)}')">Users</button></td></tr>`
+    }).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--muted)">No orgs</td></tr>'
+  }
+}
+async function showOrgUsers(orgId,orgName){
+  selectedOrgId=orgId;$('orgUsersTitle').textContent=orgName;$('orgUsersCard').style.display='block';
+  $('usersBody').innerHTML='<tr><td colspan="3" style="text-align:center;color:var(--muted)">Loading...</td></tr>';
+  const data=await api(`/api/v1/orgs/${orgId}/users`);
+  if(data&&data.users){
+    $('usersBody').innerHTML=data.users.map(u=>`<tr><td>${esc(u.email)}</td><td><span class="badge blue">${esc(u.role)}</span></td><td>${fmtDate(u.created_at)}</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;color:var(--muted)">No users</td></tr>'
+  }
+}
+function showOrgForm(){$('ofName').value='';show('orgFormModal')}
+async function saveOrg(){
+  const data=await api('/api/v1/orgs',{method:'POST',body:JSON.stringify({name:$('ofName').value})});
+  if(data&&data.id){hide('orgFormModal');loadOrgs()}
+}
+function showUserForm(){$('ufEmail').value='';show('userFormModal')}
+async function saveUser(){
+  const data=await api(`/api/v1/orgs/${selectedOrgId}/users`,{method:'POST',body:JSON.stringify({email:$('ufEmail').value,role:$('ufRole').value})});
+  if(data&&data.id){hide('userFormModal');showOrgUsers(selectedOrgId,$('orgUsersTitle').textContent)}
+}
+
+// ── Audit ──
+async function loadAudit(){
+  const limit=$('auditLimit').value;
+  const data=await api(`/api/v1/audit?limit=${limit}`);
+  if(data&&data.audit_logs){
+    $('auditBody').innerHTML=data.audit_logs.map(a=>`<tr><td style="white-space:nowrap;font-size:10px">${fmtDate(a.created_at)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td style="font-size:10px">${esc(a.target||'')}</td><td style="font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;color:var(--muted)">${a.details?JSON.stringify(a.details).slice(0,60):''}</td></tr>`).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--muted)">No audit logs</td></tr>'
+  }
+}
+
+// ── Settings ──
+async function loadSettings(){
+  const data=await api('/healthz');
+  if(!data)return;
+  $('serverInfo').innerHTML=`<div class="row"><span class="key">Version</span><span class="val">${esc(data.version||'?')}</span></div><div class="row"><span class="key">Uptime</span><span class="val">${esc(data.uptime||'?')}</span></div><div class="row"><span class="key">Status</span><span class="val">${esc(data.status||'?')}</span></div>`;
+  const mods=data.modules;
+  $('moduleInfo').innerHTML=mods?Object.entries(mods).map(([k,v])=>`<div class="row"><span class="key">${k}</span><span class="val" style="color:${v==='ok'?'var(--green)':'var(--red)'}">${v}</span></div>`).join(''):'<div class="empty">No data</div>';
+
+  $('configInfo').innerHTML=`<div class="row"><span class="key">Devices</span><span class="val">${devices.size}</span></div><div class="row"><span class="key">Total Alerts</span><span class="val">${alerts.length}</span></div><div class="row"><span class="key">Stream</span><span class="val">${ws&&ws.readyState===WebSocket.OPEN?'connected':'disconnected'}</span></div>`
+}
+
+// ── WebSocket ──
 function connectWS(){
   const proto=location.protocol==='https:'?'wss:':'ws:';
-  const ws=new WebSocket(`${proto}//${host}/api/v1/ws/telemetry`);
-  const badge=by('wsBadge');
+  try{ws=new WebSocket(`${proto}//${host}/api/v1/ws/telemetry`)}catch{setTimeout(connectWS,3000);return}
+  const badge=$('wsBadge');
   ws.onopen=()=>{badge.textContent='connected';badge.className='ws-badge ok'};
   ws.onmessage=evt=>{
     try{
       const msg=JSON.parse(evt.data);
       if(msg.event==='telemetry'&&msg.data)onTelemetry(msg.data);
-      if(msg.event==='alert'&&msg.data){alerts.unshift(msg.data);if(document.getElementById('sec-alerts').classList.contains('active'))renderAlerts();by('ovAlerts').textContent=alerts.length}
+      if(msg.event==='alert'&&msg.data){alerts.unshift(msg.data);if($('sec-alerts').classList.contains('active'))renderAlerts();if($('sec-overview').classList.contains('active'))renderOverview()}
     }catch(e){}
   };
   ws.onclose=()=>{badge.textContent='disconnected';badge.className='ws-badge off';setTimeout(connectWS,3000)};
   ws.onerror=()=>ws.close()
 }
 
-loadDevices();loadAlerts();loadHealth();
-setInterval(loadDevices,10000);setInterval(loadAlerts,15000);
-connectWS()
+// ── Init ──
+function init(){
+  loadDevices();loadAlerts();loadHealth();loadRules();
+  setInterval(loadDevices,10000);setInterval(loadAlerts,15000);
+  connectWS()
+  async function loadHealth(){
+    const data=await api('/healthz');
+    if(data)$('versionBadge').textContent='v'+(data.version||'?')
+  }
+  loadHealth()
+}
+if(isAuthed())init()
 </script>
 </body>
 </html>
