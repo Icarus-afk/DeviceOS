@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lohtbrok/deviceos/internal/httperr"
 )
 
 type Module struct {
@@ -20,13 +22,13 @@ type Module struct {
 }
 
 type SimDevice struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	Type       string  `json:"type"`
-	TempBase   float64 `json:"temp_base"`
-	HumidBase  float64 `json:"humid_base"`
-	Battery    float64 `json:"battery"`
-	Connected  bool    `json:"connected"`
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Type      string  `json:"type"`
+	TempBase  float64 `json:"temp_base"`
+	HumidBase float64 `json:"humid_base"`
+	Battery   float64 `json:"battery"`
+	Connected bool    `json:"connected"`
 }
 
 func New() *Module {
@@ -78,7 +80,7 @@ func (m *Module) handleStart(w http.ResponseWriter, r *http.Request) {
 	defer m.mu.Unlock()
 
 	if m.running {
-		http.Error(w, `{"error":"simulator already running"}`, http.StatusConflict)
+		httperr.Conflict(w, "simulator already running")
 		return
 	}
 
