@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
 
 	"github.com/lohtbrok/deviceos/internal/config"
 	"gopkg.in/yaml.v3"
@@ -33,7 +31,7 @@ func cmdInit() {
 		fmt.Printf("  %s already exists, skipping\n", configPath)
 	}
 
-	for _, dir := range []string{"data/sparkdb", "data/backups"} {
+	for _, dir := range []string{"data"} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			fmt.Fprintf(os.Stderr, "error: failed to create %s: %v\n", dir, err)
 			os.Exit(1)
@@ -41,39 +39,5 @@ func cmdInit() {
 		fmt.Printf("  created %s/\n", dir)
 	}
 
-	sparkdbPath := detectSparkDB()
-	if sparkdbPath == "" {
-		fmt.Println("\n  SparkDB binary not found in PATH or common locations.")
-		fmt.Println("  Download it from https://github.com/sparkdb/sparkdb/releases")
-		fmt.Println("  Then place it in the current directory or add to PATH.")
-	} else {
-		abs, _ := filepath.Abs(sparkdbPath)
-		fmt.Printf("  SparkDB found at %s\n", abs)
-	}
-
 	fmt.Println("\nDone. Run 'deviceos start' to launch the server.")
-}
-
-func detectSparkDB() string {
-	if exe, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exe)
-		p := filepath.Join(exeDir, "sparkdb")
-		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
-			return p
-		}
-	}
-	for _, loc := range []string{
-		"./sparkdb",
-		"sparkdb",
-		"./bin/sparkdb",
-	} {
-		if fi, err := os.Stat(loc); err == nil && !fi.IsDir() {
-			abs, _ := filepath.Abs(loc)
-			return abs
-		}
-	}
-	if bin, err := exec.LookPath("sparkdb"); err == nil {
-		return bin
-	}
-	return ""
 }

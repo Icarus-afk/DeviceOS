@@ -36,6 +36,20 @@ func main() {
 		fs.Parse(os.Args[2:])
 		cmdStatus(*configPath)
 
+	case "backup":
+		fs := flag.NewFlagSet("backup", flag.ExitOnError)
+		output := fs.String("output", "", "output file path (default: backup-<timestamp>.db.gz)")
+		fs.Parse(os.Args[2:])
+		cmdBackup(*output)
+
+	case "restore":
+		args := os.Args[2:]
+		if len(args) < 1 {
+			fmt.Fprintln(os.Stderr, "usage: deviceos restore <backup-file>")
+			os.Exit(1)
+		}
+		cmdRestore(args[0])
+
 	case "help", "--help", "-h":
 		printUsage()
 
@@ -56,9 +70,11 @@ Commands:
   start          Start the DeviceOS server
   init           Scaffold a new DeviceOS project
   status         Show server health status
+  backup         Create a compressed database backup
+  restore        Restore database from a backup file
   version        Print version information
   help           Show this usage message
 
-Run 'deviceos start --help' for server flags.
+Run 'deviceos <command> --help' for command-specific flags.
 `)
 }
