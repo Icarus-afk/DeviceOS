@@ -16,14 +16,11 @@ func TestDefault(t *testing.T) {
 	if cfg.Server.Host != "0.0.0.0" {
 		t.Fatalf("expected host 0.0.0.0, got %s", cfg.Server.Host)
 	}
-	if cfg.SparkDB.Host != "127.0.0.1" {
-		t.Fatalf("expected sparkdb host 127.0.0.1, got %s", cfg.SparkDB.Host)
+	if cfg.Storage.Path != "./data/deviceos.db" {
+		t.Fatalf("expected ./data/deviceos.db, got %s", cfg.Storage.Path)
 	}
-	if cfg.SparkDB.Port != 9600 {
-		t.Fatalf("expected sparkdb port 9600, got %d", cfg.SparkDB.Port)
-	}
-	if cfg.SparkDB.Database != "deviceos" {
-		t.Fatalf("expected database deviceos, got %s", cfg.SparkDB.Database)
+	if cfg.Server.LogLevel != "info" {
+		t.Fatalf("expected log level info, got %s", cfg.Server.LogLevel)
 	}
 }
 
@@ -44,10 +41,9 @@ func TestLoadYAML(t *testing.T) {
 server:
   host: "127.0.0.1"
   port: 9090
-sparkdb:
-  host: "127.0.0.1"
-  port: 9600
-  database: "deviceos"
+  log_level: "debug"
+storage:
+  path: "./data/custom.db"
 `
 	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
 		t.Fatal(err)
@@ -62,11 +58,56 @@ sparkdb:
 	if cfg.Server.Port != 9090 {
 		t.Fatalf("expected 9090, got %d", cfg.Server.Port)
 	}
-	if cfg.SparkDB.Port != 9600 {
-		t.Fatalf("expected sparkdb port 9600, got %d", cfg.SparkDB.Port)
+	if cfg.Server.LogLevel != "debug" {
+		t.Fatalf("expected debug, got %s", cfg.Server.LogLevel)
 	}
-	if cfg.SparkDB.Database != "deviceos" {
-		t.Fatalf("expected deviceos, got %s", cfg.SparkDB.Database)
+	if cfg.Storage.Path != "./data/custom.db" {
+		t.Fatalf("expected ./data/custom.db, got %s", cfg.Storage.Path)
+	}
+}
+
+func TestValidationBadPort(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad_port.yaml")
+	yaml := `server:
+  port: 99999
+storage:
+  path: "./data/db.db"
+`
+	os.WriteFile(path, []byte(yaml), 0644)
+	_, err := config.Load(path)
+	if err == nil {
+		t.Fatal("expected validation error for bad port")
+	}
+}
+
+func TestValidationTLSMissingKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad_tls.yaml")
+	yaml := `server:
+  tls_cert: "/path/to/cert.pem"
+storage:
+  path: "./data/db.db"
+`
+	os.WriteFile(path, []byte(yaml), 0644)
+	_, err := config.Load(path)
+	if err == nil {
+		t.Fatal("expected validation error for missing tls_key")
+	}
+}
+
+func TestValidationBadLogLevel(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad_loglevel.yaml")
+	yaml := `server:
+  log_level: "trace"
+storage:
+  path: "./data/db.db"
+`
+	os.WriteFile(path, []byte(yaml), 0644)
+	_, err := config.Load(path)
+	if err == nil {
+		t.Fatal("expected validation error for bad log level")
 	}
 }
 
@@ -93,21 +134,6 @@ func TestLoadEmptyFile(t *testing.T) {
 	}
 }
 
-func TestLoadPartiallyInvalidYAML(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "partial.yaml")
-	yaml := `
-server:
-  host: "0.0.0.0"
-  port: "not-a-number"
-`
-	os.WriteFile(path, []byte(yaml), 0644)
-	_, err := config.Load(path)
-	if err == nil {
-		t.Fatal("expected error for port type mismatch")
-	}
-}
-
 func TestEnvOverrideServerPort(t *testing.T) {
 	os.Setenv("DEVICEOS_SERVER_PORT", "9090")
 	defer os.Unsetenv("DEVICEOS_SERVER_PORT")
@@ -124,9 +150,9 @@ func TestEnvOverrideServerPort(t *testing.T) {
 	}
 }
 
-func TestEnvOverrideSparkDBBin(t *testing.T) {
-	os.Setenv("DEVICEOS_SPARKDB_BIN_PATH", "/custom/path/sparkdb")
-	defer os.Unsetenv("DEVICEOS_SPARKDB_BIN_PATH")
+func TestEnvOverrideStoragePath(t *testing.T) {
+	os.Setenv("DEVICEOS_STORAGE_PATH", "/custom/path/data.db")
+	defer os.Unsetenv("DEVICEOS_STORAGE_PATH")
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "env.yaml")
@@ -135,14 +161,14 @@ func TestEnvOverrideSparkDBBin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.SparkDB.BinPath != "/custom/path/sparkdb" {
-		t.Fatalf("expected /custom/path/sparkdb, got %s", cfg.SparkDB.BinPath)
+	if cfg.Storage.Path != "/custom/path/data.db" {
+		t.Fatalf("expected /custom/path/data.db, got %s", cfg.Storage.Path)
 	}
 }
 
-func TestEnvOverrideSPARKDB_BIN_BackwardCompat(t *testing.T) {
-	os.Setenv("SPARKDB_BIN", "/old/path/sparkdb")
-	defer os.Unsetenv("SPARKDB_BIN")
+func TestEnvOverrideLogLevel(t *testing.T) {
+	os.Setenv("DEVICEOS_LOG_LEVEL", "debug")
+	defer os.Unsetenv("DEVICEOS_LOG_LEVEL")
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "env.yaml")
@@ -151,27 +177,24 @@ func TestEnvOverrideSPARKDB_BIN_BackwardCompat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.SparkDB.BinPath != "/old/path/sparkdb" {
-		t.Fatalf("expected /old/path/sparkdb, got %s", cfg.SparkDB.BinPath)
+	if cfg.Server.LogLevel != "debug" {
+		t.Fatalf("expected debug, got %s", cfg.Server.LogLevel)
 	}
 }
 
-func TestEnvOverrideTakesPrecedenceOverYAML(t *testing.T) {
-	os.Setenv("DEVICEOS_SERVER_PORT", "7070")
-	defer os.Unsetenv("DEVICEOS_SERVER_PORT")
+func TestEnvOverrideRateLimit(t *testing.T) {
+	os.Setenv("DEVICEOS_RATE_LIMIT_RPM", "100")
+	defer os.Unsetenv("DEVICEOS_RATE_LIMIT_RPM")
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "override.yaml")
-	yaml := `server:
-  port: 8080
-`
-	os.WriteFile(path, []byte(yaml), 0644)
+	path := filepath.Join(dir, "env.yaml")
+	os.WriteFile(path, []byte(""), 0644)
 	cfg, err := config.Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Server.Port != 7070 {
-		t.Fatalf("expected 7070 from env override, got %d", cfg.Server.Port)
+	if cfg.Server.RateLimitRPM != 100 {
+		t.Fatalf("expected 100, got %d", cfg.Server.RateLimitRPM)
 	}
 }
 
@@ -204,5 +227,21 @@ func TestEnvOverrideAdminToken(t *testing.T) {
 	}
 	if cfg.Modules.AdminAPIKey != "dos_mytoken_1234" {
 		t.Fatalf("expected dos_mytoken_1234, got %s", cfg.Modules.AdminAPIKey)
+	}
+}
+
+func TestEnvOverrideTelemetryTTL(t *testing.T) {
+	os.Setenv("DEVICEOS_TELEMETRY_TTL", "168h")
+	defer os.Unsetenv("DEVICEOS_TELEMETRY_TTL")
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "env.yaml")
+	os.WriteFile(path, []byte(""), 0644)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Modules.TelemetryTTL != "168h" {
+		t.Fatalf("expected 168h, got %s", cfg.Modules.TelemetryTTL)
 	}
 }

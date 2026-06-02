@@ -5,13 +5,8 @@ server:
   host: "0.0.0.0"
   port: 8080
 
-sparkdb:
-  bin_path: "./bin/sparkdb"
-  host: "127.0.0.1"
-  port: 9600
-  database: "deviceos"
-  data_dir: "./data/sparkdb"
-  auth: false
+storage:
+  path: "./data/deviceos.db"
 
 modules:
   jwt_secret: "dev-change-me-in-production"

@@ -4,8 +4,8 @@
 server:
   port: 8080
 
-sparkdb:
-  data_dir: "./data/sparkdb"
+storage:
+  path: "./data/deviceos.db"
 
 modules:
   jwt_secret: "change-me"

@@ -5,14 +5,8 @@ server:
   host: "0.0.0.0"
   port: 8080
 
-sparkdb:
-  bin_path: "/usr/local/bin/sparkdb"
-  host: "127.0.0.1"
-  port: 9600
-  database: "deviceos"
-  data_dir: "/var/lib/deviceos/sparkdb"
-  api_key: ""
-  auth: true
+storage:
+  path: "/var/lib/deviceos/deviceos.db"
 
 modules:
   jwt_secret: ""  # Required: set via DEVICEOS_JWT_SECRET env var
