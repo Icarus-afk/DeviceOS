@@ -73,8 +73,8 @@ func TestMiddlewareHeaders(t *testing.T) {
 	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
 		t.Fatalf("expected application/json, got %s", ct)
 	}
-	if v := resp.Header.Get("X-DeviceOS-Version"); v != "0.1.0-dev" {
-		t.Fatalf("expected 0.1.0-dev, got %s", v)
+	if v := resp.Header.Get("X-DeviceOS-Version"); v != "0.1.0" {
+		t.Fatalf("expected 0.1.0, got %s", v)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
